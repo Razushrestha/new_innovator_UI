@@ -1921,6 +1921,7 @@ class _PopoverTile extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Stack(
+                  alignment: Alignment.center,
                   children: [
                     if (!destructive)
                       Positioned.fill(
@@ -1939,6 +1940,7 @@ class _PopoverTile extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           // Matching side rails keep icon + label optically centered
                           // whether or not the checkmark is showing.
@@ -1948,6 +1950,7 @@ class _PopoverTile extends StatelessWidget {
                               builder: (context, constraints) {
                                 return Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Icon(
                                       icon,
@@ -1974,7 +1977,7 @@ class _PopoverTile extends StatelessWidget {
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                           letterSpacing: -.1,
-                                          height: 1.1,
+                                          height: 1,
                                           color: labelColor,
                                         ),
                                       ),

@@ -7,6 +7,7 @@ import 'widgets/animated_blob_background.dart';
 import 'widgets/glass_card.dart';
 import 'widgets/glass_orb_logo.dart';
 import 'widgets/glass_text_field.dart';
+import 'widgets/google_logo.dart';
 import 'widgets/liquid_button.dart';
 
 const _ink = BrandColors.ink;
@@ -40,20 +41,25 @@ class _LoginPageState extends State<LoginPage>
 
   // Auth is bypassed for now: any (or no) credentials go straight to the
   // dashboard. Wire a real backend here later.
-  void _signIn() {
-    final email = _emailController.text.trim();
+  void _enterApp({String? email}) {
+    final typed = _emailController.text.trim();
+    final resolved = (email ?? typed).isEmpty
+        ? 'demo@innovator.com'
+        : (email ?? typed);
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 450),
         pageBuilder: (_, animation, __) => FadeTransition(
           opacity: animation,
-          child: DashboardPage(
-            email: email.isEmpty ? 'demo@innovator.com' : email,
-          ),
+          child: DashboardPage(email: resolved),
         ),
       ),
     );
   }
+
+  void _signIn() => _enterApp();
+
+  void _signInWithGoogle() => _enterApp(email: 'google@innovator.com');
 
   @override
   void dispose() {
@@ -136,6 +142,15 @@ class _LoginPageState extends State<LoginPage>
                           ),
                           const SizedBox(height: 20),
                           LiquidButton(label: 'Sign In', onTap: _signIn),
+                          const SizedBox(height: 18),
+                          const _OrDivider(),
+                          const SizedBox(height: 18),
+                          LiquidButton(
+                            label: 'Continue with Google',
+                            dark: false,
+                            leading: const GoogleLogo(),
+                            onTap: _signInWithGoogle,
+                          ),
                           const SizedBox(height: 26),
                           Wrap(
                             alignment: WrapAlignment.center,
@@ -191,6 +206,31 @@ class _LoginPageState extends State<LoginPage>
           ),
         ],
       ),
+    );
+  }
+}
+
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(height: 1, color: _ink.withValues(alpha: .12)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Text(
+            'or',
+            style: TextStyle(fontSize: 12.5, color: _ink.withValues(alpha: .4)),
+          ),
+        ),
+        Expanded(
+          child: Container(height: 1, color: _ink.withValues(alpha: .12)),
+        ),
+      ],
     );
   }
 }

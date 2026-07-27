@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'shop_models.dart';
 import 'widgets/fast_glass.dart';
+import 'widgets/liquid_pressable.dart';
 
 const _ink = BrandColors.ink;
 const _muted = BrandColors.muted;
@@ -524,21 +525,24 @@ class _FloatingCart extends StatelessWidget {
               top: -4,
               right: -4,
               child: Container(
+                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 6.5,
+                  horizontal: 6,
                   vertical: 3,
                 ),
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: const Color(0xFFE0245E),
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
                 child: Text(
-                  '',
+                  count > 99 ? '99+' : '$count',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
+                    height: 1,
                   ),
                 ),
               ),
@@ -600,7 +604,7 @@ class _TrustBar extends StatelessWidget {
             Expanded(
               child: _TrustItem(
                 icon: Icons.replay_rounded,
-                label: '30-day refund',
+                label: '7 days refund',
               ),
             ),
           ],
@@ -911,14 +915,11 @@ class _ProductCardState extends State<_ProductCard> {
               maxChildSize: .92,
               shouldCloseOnMinExtent: true,
               builder: (context, scrollController) {
-                return GestureDetector(
-                  // Keep taps on the card from hitting the dismiss scrim.
-                  onTap: () {},
-                  child: _ProductDetailSheet(
-                    product: widget.product,
-                    onAdd: widget.onAdd,
-                    scrollController: scrollController,
-                  ),
+                // No wrapping GestureDetector — an empty onTap parent was
+                // winning the gesture arena and blocking Add to cart.
+                return _ProductDetailSheet(
+                  product: widget.product,
+                  scrollController: scrollController,
                 );
               },
             ),
@@ -1080,12 +1081,10 @@ class _AddButton extends StatelessWidget {
 class _ProductDetailSheet extends StatefulWidget {
   const _ProductDetailSheet({
     required this.product,
-    required this.onAdd,
     this.scrollController,
   });
 
   final ShopProduct product;
-  final VoidCallback onAdd;
   final ScrollController? scrollController;
 
   @override
@@ -1105,7 +1104,7 @@ class _ProductDetailSheetState extends State<_ProductDetailSheet> {
 
   void _add() {
     HapticFeedback.mediumImpact();
-    widget.onAdd();
+    Cart.instance.add(widget.product);
     setState(() => _added = true);
   }
 
@@ -1378,9 +1377,11 @@ class _ProductDetailSheetState extends State<_ProductDetailSheet> {
                       ),
                     ],
                     const SizedBox(height: 22),
-                    FastTap(
+                    LiquidPressable(
                       onTap: _add,
                       borderRadius: BorderRadius.circular(18),
+                      rippleColor: Colors.white,
+                      intensity: 1.15,
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 220),
                         height: 52,

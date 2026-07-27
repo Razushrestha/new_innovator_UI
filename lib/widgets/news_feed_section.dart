@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../profile_page.dart';
 import '../theme/brand_colors.dart';
 import 'fast_glass.dart';
 import 'liquid_pressable.dart';
@@ -293,6 +294,90 @@ class _FeedCardState extends State<_FeedCard> {
   bool _reposted = false;
   bool _following = false;
 
+  Future<void> _openPostMenu(BuildContext buttonContext) async {
+    HapticFeedback.selectionClick();
+    final box = buttonContext.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final origin = box.localToGlobal(Offset.zero);
+    final anchor = origin & box.size;
+
+    final action = await Navigator.of(context).push<_FeedMenuAction>(
+      _FeedMenuRoute(anchorRect: anchor),
+    );
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case _FeedMenuAction.repost:
+        HapticFeedback.lightImpact();
+        setState(() => _reposted = !_reposted);
+        _toast(_reposted ? 'Reposted' : 'Repost removed');
+      case _FeedMenuAction.copy:
+        await Clipboard.setData(ClipboardData(text: widget.post.status));
+        HapticFeedback.selectionClick();
+        _toast('Copied');
+      case _FeedMenuAction.block:
+        HapticFeedback.mediumImpact();
+        _toast('Blocked ${widget.post.author}');
+    }
+  }
+
+  void _toast(String label) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        backgroundColor: _ink.withValues(alpha: .92),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        content: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1600),
+      ),
+    );
+  }
+
+  void _openAuthorProfile() {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 420),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (_, animation, __) => FadeTransition(
+          opacity: animation,
+          child: AuthorProfilePage(name: widget.post.author),
+        ),
+      ),
+    );
+  }
+
+  void _openAvatarFullscreen() {
+    HapticFeedback.selectionClick();
+    final letter = widget.post.author.isEmpty
+        ? '?'
+        : widget.post.author[0].toUpperCase();
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.black.withValues(alpha: .82),
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        pageBuilder: (_, animation, __) => _AvatarLightbox(
+          letter: letter,
+          name: widget.post.author,
+          heroTag: 'feed-avatar-${widget.post.author}-${widget.post.time}',
+          animation: animation,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
@@ -307,31 +392,42 @@ class _FeedCardState extends State<_FeedCard> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _Avatar(letter: post.author[0]),
+                  FastTap(
+                    onTap: _openAvatarFullscreen,
+                    borderRadius: BorderRadius.circular(999),
+                    child: Hero(
+                      tag: 'feed-avatar-${post.author}-${post.time}',
+                      child: _Avatar(letter: post.author[0]),
+                    ),
+                  ),
                   const SizedBox(width: 11),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              post.author,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: _ink,
-                                letterSpacing: -.2,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: FastTap(
+                                onTap: _openAuthorProfile,
+                                borderRadius: BorderRadius.circular(6),
+                                child: Text(
+                                  post.author,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink,
+                                    letterSpacing: -.2,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          const _NameBadge(),
-                        ],
-                      ),
+                            const SizedBox(width: 4),
+                            const _NameBadge(),
+                          ],
+                        ),
                         const SizedBox(height: 1),
                         Text(
                           '${post.profession} · ${post.time}',
@@ -354,15 +450,17 @@ class _FeedCardState extends State<_FeedCard> {
                     },
                   ),
                   const SizedBox(width: 2),
-                  FastTap(
-                    onTap: () {},
-                    borderRadius: BorderRadius.circular(999),
-                                                child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: Icon(
-                        Icons.more_horiz_rounded,
-                        size: 20,
-                        color: _ink.withValues(alpha: .4),
+                  Builder(
+                    builder: (buttonContext) => FastTap(
+                      onTap: () => _openPostMenu(buttonContext),
+                      borderRadius: BorderRadius.circular(999),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(
+                          Icons.more_horiz_rounded,
+                          size: 20,
+                          color: _ink.withValues(alpha: .4),
+                        ),
                       ),
                     ),
                   ),
@@ -457,6 +555,127 @@ class _Avatar extends StatelessWidget {
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: _ink,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Immersive avatar preview — tap anywhere to dismiss.
+class _AvatarLightbox extends StatelessWidget {
+  const _AvatarLightbox({
+    required this.letter,
+    required this.name,
+    required this.heroTag,
+    required this.animation,
+  });
+
+  final String letter;
+  final String name;
+  final String heroTag;
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    return Material(
+      type: MaterialType.transparency,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).pop(),
+        child: SafeArea(
+          child: FadeTransition(
+            opacity: curved,
+            child: Stack(
+              children: [
+                Center(
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: .86, end: 1).animate(curved),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Hero(
+                          tag: heroTag,
+                          child: Container(
+                            width: 240,
+                            height: 240,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  BrandColors.secondarySurface,
+                                  Color(0xFF8A93A8),
+                                ],
+                              ),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: .9),
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: .35),
+                                  blurRadius: 40,
+                                  offset: const Offset(0, 18),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                letter,
+                                style: const TextStyle(
+                                  fontSize: 96,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        Text(
+                          name,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: -.3,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tap to close',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white.withValues(alpha: .55),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 16,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: Colors.white.withValues(alpha: .9),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1012,6 +1231,208 @@ class _ActionButton extends StatelessWidget {
                 color: color,
               ),
               child: Text(label),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// -------------------------------------------------------------- post menu
+
+enum _FeedMenuAction { repost, copy, block }
+
+class _FeedMenuRoute extends PopupRoute<_FeedMenuAction> {
+  _FeedMenuRoute({required this.anchorRect});
+
+  final Rect anchorRect;
+
+  @override
+  Color? get barrierColor => _ink.withValues(alpha: .12);
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  String? get barrierLabel => 'Dismiss';
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 280);
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    return _FeedMenuPopover(anchorRect: anchorRect, animation: animation);
+  }
+}
+
+class _FeedMenuPopover extends StatelessWidget {
+  const _FeedMenuPopover({required this.anchorRect, required this.animation});
+
+  final Rect anchorRect;
+  final Animation<double> animation;
+
+  static const _width = 168.0;
+  static const _height = 156.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final padding = MediaQuery.paddingOf(context);
+
+    var left = anchorRect.right - _width;
+    left = left.clamp(12.0, size.width - _width - 12);
+
+    var top = anchorRect.bottom + 6;
+    final maxTop = size.height - padding.bottom - _height - 12;
+    final openAbove = top > maxTop;
+    if (openAbove) top = anchorRect.top - _height - 6;
+    top = top.clamp(padding.top + 8, maxTop);
+
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          Positioned(
+            left: left,
+            top: top,
+            width: _width,
+            child: FadeTransition(
+              opacity: curved,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: .92, end: 1).animate(curved),
+                alignment: openAbove
+                    ? Alignment.bottomRight
+                    : Alignment.topRight,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withValues(alpha: .9),
+                            Colors.white.withValues(alpha: .62),
+                          ],
+                        ),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: .95),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _ink.withValues(alpha: .16),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _FeedMenuTile(
+                              icon: Icons.repeat_rounded,
+                              label: 'Repost',
+                              onTap: () => Navigator.of(
+                                context,
+                              ).pop(_FeedMenuAction.repost),
+                            ),
+                            const SizedBox(height: 4),
+                            _FeedMenuTile(
+                              icon: Icons.copy_rounded,
+                              label: 'Copy',
+                              onTap: () => Navigator.of(
+                                context,
+                              ).pop(_FeedMenuAction.copy),
+                            ),
+                            const SizedBox(height: 4),
+                            _FeedMenuTile(
+                              icon: Icons.block_rounded,
+                              label: 'Block',
+                              destructive: true,
+                              onTap: () => Navigator.of(
+                                context,
+                              ).pop(_FeedMenuAction.block),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedMenuTile extends StatelessWidget {
+  const _FeedMenuTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = destructive ? const Color(0xFFC0392B) : _ink;
+
+    return LiquidPressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      rippleColor: destructive ? accent : _ink,
+      intensity: 1.1,
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: destructive
+              ? accent.withValues(alpha: .08)
+              : Colors.white.withValues(alpha: .42),
+          border: Border.all(
+            color: destructive
+                ? accent.withValues(alpha: .2)
+                : Colors.white.withValues(alpha: .7),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: accent.withValues(alpha: .85)),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -.1,
+                color: accent,
+              ),
             ),
           ],
         ),

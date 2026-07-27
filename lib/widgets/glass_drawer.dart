@@ -29,6 +29,7 @@ class GlassDrawer extends StatelessWidget {
     this.onShop,
     this.onELearning,
     this.onProfile,
+    this.onNotifications,
   });
 
   final String name;
@@ -37,6 +38,7 @@ class GlassDrawer extends StatelessWidget {
   final VoidCallback? onShop;
   final VoidCallback? onELearning;
   final VoidCallback? onProfile;
+  final VoidCallback? onNotifications;
 
   /// Let the liquid wobble play before the drawer slides away.
   void _closeThen(BuildContext context, VoidCallback? action) {
@@ -53,6 +55,11 @@ class GlassDrawer extends StatelessWidget {
       icon: Icons.person_outline_rounded,
       label: 'Profile',
       onTap: onProfile,
+    ),
+    GlassDrawerItem(
+      icon: Icons.notifications_none_rounded,
+      label: 'Notification',
+      onTap: onNotifications,
     ),
     GlassDrawerItem(
       icon: Icons.storefront_outlined,
@@ -321,7 +328,9 @@ class _ProfileHeader extends StatelessWidget {
                     letterSpacing: -.3,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 6),
+                const _DrawerInnovatorBadge(),
+                const SizedBox(height: 5),
                 Text(
                   title,
                   maxLines: 1,
@@ -346,6 +355,51 @@ class _ProfileHeader extends StatelessWidget {
       rippleColor: _ink,
       intensity: .55,
       child: content,
+    );
+  }
+}
+
+/// Compact Innovator title badge used in the drawer header.
+class _DrawerInnovatorBadge extends StatelessWidget {
+  const _DrawerInnovatorBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE0A800), BrandColors.accent],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: BrandColors.accent.withValues(alpha: .28),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: 12, color: Colors.white),
+          SizedBox(width: 5),
+          Text(
+            'Innovator',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: .2,
+            ),
+          ),
+          SizedBox(width: 3),
+          Icon(Icons.verified_rounded, size: 12, color: Colors.white),
+        ],
+      ),
     );
   }
 }

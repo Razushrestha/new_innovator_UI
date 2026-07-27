@@ -6,6 +6,7 @@ import 'cart_page.dart';
 import 'chat_page.dart';
 import 'elearning_page.dart';
 import 'login_page.dart';
+import 'notifications_sheet.dart';
 import 'post_page.dart';
 import 'profile_page.dart';
 import 'search_section.dart';
@@ -189,6 +190,7 @@ class _DashboardPageState extends State<DashboardPage> {
           _showCart = false;
           _showProfile = false;
         }),
+        onNotifications: () => showNotificationsSheet(context),
       ),
       // Keys keep every layer's element stable when the glow/ghost layers
       // appear mid-drag — otherwise the nav bar's gesture detector would

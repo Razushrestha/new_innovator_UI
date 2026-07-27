@@ -774,8 +774,8 @@ class _LearnTrustBar extends StatelessWidget {
             ),
             Expanded(
               child: _TrustItem(
-                icon: Icons.all_inclusive_rounded,
-                label: 'Lifetime access',
+                icon: Icons.replay_rounded,
+                label: '7 days refund',
               ),
             ),
           ],
