@@ -59,26 +59,12 @@ class ChatSection extends StatefulWidget {
   State<ChatSection> createState() => _ChatSectionState();
 }
 
-class _FlyingDrop {
-  _FlyingDrop({
-    required this.id,
-    required this.origin,
-    required this.controller,
-  });
-
-  final int id;
-  final Offset origin;
-  final AnimationController controller;
-}
-
 class _ChatSectionState extends State<ChatSection>
     with TickerProviderStateMixin {
   final _composer = TextEditingController();
   final _composerFocus = FocusNode();
   final _listSearch = TextEditingController();
   final _listSearchFocus = FocusNode();
-  final _threadStackKey = GlobalKey();
-  final _sendKey = GlobalKey();
   String _listQuery = '';
 
   late final List<_Conversation> _conversations = [
@@ -172,8 +158,6 @@ class _ChatSectionState extends State<ChatSection>
   bool _typing = false;
   int _replyIndex = 0;
   int _sendCount = 0;
-  int _dropId = 0;
-  final List<_FlyingDrop> _drops = [];
 
   /// Pending auto-delete timers keyed by message id.
   final Map<String, Timer> _autoDeleteTimers = {};
@@ -191,9 +175,6 @@ class _ChatSectionState extends State<ChatSection>
 
   @override
   void dispose() {
-    for (final drop in _drops) {
-      drop.controller.dispose();
-    }
     for (final timer in _autoDeleteTimers.values) {
       timer.cancel();
     }
@@ -363,61 +344,32 @@ class _ChatSectionState extends State<ChatSection>
     });
   }
 
-  Offset? _sendOriginInStack() {
-    final sendBox = _sendKey.currentContext?.findRenderObject() as RenderBox?;
-    final stackBox =
-        _threadStackKey.currentContext?.findRenderObject() as RenderBox?;
-    if (sendBox == null || stackBox == null || !sendBox.hasSize) return null;
-    final global = sendBox.localToGlobal(sendBox.size.center(Offset.zero));
-    return stackBox.globalToLocal(global);
-  }
-
-  void _launchDropThenDeliver(_Conversation open, String text) {
-    final origin = _sendOriginInStack() ?? const Offset(320, 520);
-    final controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 920),
-    );
-    final drop = _FlyingDrop(
-      id: ++_dropId,
-      origin: origin,
-      controller: controller,
-    );
+  void _deliverMessage(_Conversation open, String text) {
     setState(() {
-      _drops.add(drop);
       _composer.clear();
       _sendCount++;
+      _messages[open.name]!.add(_Msg(text, mine: true, time: 'now'));
     });
     HapticFeedback.mediumImpact();
 
-    controller.forward().whenComplete(() {
-      if (!mounted) return;
-      controller.dispose();
-      setState(() {
-        _drops.removeWhere((d) => d.id == drop.id);
-        _messages[open.name]!.add(_Msg(text, mine: true, time: 'now'));
-      });
-      HapticFeedback.lightImpact();
-
-      // The peer starts typing after the drop lands, then a reply wells up.
-      Future.delayed(const Duration(milliseconds: 500), () {
+    // Peer starts typing, then a reply wells up.
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted || _open != open) return;
+      setState(() => _typing = true);
+      Future.delayed(const Duration(milliseconds: 1500), () {
         if (!mounted || _open != open) return;
-        setState(() => _typing = true);
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (!mounted || _open != open) return;
-          setState(() {
-            _typing = false;
-            _messages[open.name]!.add(
-              _Msg(
-                _replies[_replyIndex % _replies.length],
-                mine: false,
-                time: 'now',
-              ),
-            );
-            _replyIndex++;
-          });
-          HapticFeedback.lightImpact();
+        setState(() {
+          _typing = false;
+          _messages[open.name]!.add(
+            _Msg(
+              _replies[_replyIndex % _replies.length],
+              mine: false,
+              time: 'now',
+            ),
+          );
+          _replyIndex++;
         });
+        HapticFeedback.selectionClick();
       });
     });
   }
@@ -429,7 +381,7 @@ class _ChatSectionState extends State<ChatSection>
       HapticFeedback.selectionClick();
       return;
     }
-    _launchDropThenDeliver(open, text);
+    _deliverMessage(open, text);
   }
 
   @override
@@ -558,63 +510,49 @@ class _ChatSectionState extends State<ChatSection>
     return Padding(
       key: ValueKey('thread-${conversation.name}'),
       padding: EdgeInsets.fromLTRB(20, padding.top + 8, 20, padding.bottom + 6),
-      child: Stack(
-        key: _threadStackKey,
-        clipBehavior: Clip.none,
+      child: Column(
         children: [
-          Column(
-            children: [
-              _ThreadHeader(
-                conversation: conversation,
-                wave: _wave,
-                onBack: _closeConversation,
-                onMore: (anchor) {
-                  final list = _messages[conversation.name];
-                  if (list == null || list.isEmpty) {
-                    HapticFeedback.selectionClick();
-                    _liquidToast('No messages yet');
-                    return;
-                  }
-                  _openMessageMenu(list.last, anchor);
-                },
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: messages.length + (_typing ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (_typing && index == 0) {
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: _TypingBubble(wave: _wave),
-                      );
-                    }
-                    final messageIndex =
-                        messages.length - 1 - (index - (_typing ? 1 : 0));
-                    final message = messages[messageIndex];
-                    return _Bubble(
-                      key: ValueKey(message.id),
-                      message: message,
-                      wave: _wave,
-                      onMore: (anchor) => _openMessageMenu(message, anchor),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 10),
-              _buildComposer(),
-            ],
+          _ThreadHeader(
+            conversation: conversation,
+            wave: _wave,
+            onBack: _closeConversation,
+            onMore: (anchor) {
+              final list = _messages[conversation.name];
+              if (list == null || list.isEmpty) {
+                HapticFeedback.selectionClick();
+                _liquidToast('No messages yet');
+                return;
+              }
+              _openMessageMenu(list.last, anchor);
+            },
           ),
-          // Bouncy water drops launched from the send orb.
-          for (final drop in _drops)
-            _BouncySendDrop(
-              key: ValueKey('drop-${drop.id}'),
-              origin: drop.origin,
-              controller: drop.controller,
-              wave: _wave,
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.builder(
+              reverse: true,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              itemCount: messages.length + (_typing ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (_typing && index == 0) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: _TypingBubble(wave: _wave),
+                  );
+                }
+                final messageIndex =
+                    messages.length - 1 - (index - (_typing ? 1 : 0));
+                final message = messages[messageIndex];
+                return _Bubble(
+                  key: ValueKey(message.id),
+                  message: message,
+                  wave: _wave,
+                  onMore: (anchor) => _openMessageMenu(message, anchor),
+                );
+              },
             ),
+          ),
+          const SizedBox(height: 10),
+          _buildComposer(),
         ],
       ),
     );
@@ -710,77 +648,73 @@ class _ChatSectionState extends State<ChatSection>
           ),
         ),
         const SizedBox(width: 10),
-        // The send orb: a glass droplet filled with ink, always waving.
-        // It pops elastically with every message that leaves it.
+        // Send orb — liquid press only, no flying drop.
         TweenAnimationBuilder<double>(
           key: ValueKey(_sendCount),
-          tween: Tween(begin: _sendCount == 0 ? 1 : .55, end: 1),
-          duration: const Duration(milliseconds: 720),
-          curve: Curves.elasticOut,
+          tween: Tween(begin: _sendCount == 0 ? 1 : .92, end: 1),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
           builder: (context, t, child) =>
               Transform.scale(scale: t, child: child),
-          child: KeyedSubtree(
-            key: _sendKey,
-            child: Tooltip(
-              message: 'Send',
-              child: LiquidPressable(
-                onTap: _send,
-                borderRadius: BorderRadius.circular(26),
-                rippleColor: Colors.white,
-                intensity: 1.25,
-                child: AnimatedBuilder(
-                  animation: _wave,
-                  builder: (context, _) => Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: .5),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: .95),
-                        width: 1.2,
+          child: Tooltip(
+            message: 'Send',
+            child: LiquidPressable(
+              onTap: _send,
+              borderRadius: BorderRadius.circular(26),
+              rippleColor: Colors.white,
+              intensity: 1.15,
+              child: AnimatedBuilder(
+                animation: _wave,
+                builder: (context, _) => Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: .5),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: .95),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _ink.withValues(alpha: .18),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _ink.withValues(alpha: .22),
-                          blurRadius: 16,
-                          offset: const Offset(0, 7),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CustomPaint(
+                          painter: WaveFillPainter(
+                            phase: _wave.value * 2 * pi + 1.2,
+                            fill: .95,
+                            color: _ink.withValues(alpha: .28),
+                            amplitude: 4,
+                            frequency: 1.3,
+                          ),
+                        ),
+                        CustomPaint(
+                          painter: WaveFillPainter(
+                            phase: _wave.value * 2 * pi,
+                            fill: .82,
+                            color: const Color(
+                              0xFF15181F,
+                            ).withValues(alpha: .93),
+                            amplitude: 3.4,
+                            frequency: 1.5,
+                          ),
+                        ),
+                        const Center(
+                          child: Icon(
+                            Icons.water_drop_rounded,
+                            size: 22,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
-                    ),
-                    child: ClipOval(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CustomPaint(
-                            painter: WaveFillPainter(
-                              phase: _wave.value * 2 * pi + 1.2,
-                              fill: .95,
-                              color: _ink.withValues(alpha: .28),
-                              amplitude: 4,
-                              frequency: 1.3,
-                            ),
-                          ),
-                          CustomPaint(
-                            painter: WaveFillPainter(
-                              phase: _wave.value * 2 * pi,
-                              fill: .82,
-                              color: const Color(
-                                0xFF15181F,
-                              ).withValues(alpha: .93),
-                              amplitude: 3.4,
-                              frequency: 1.5,
-                            ),
-                          ),
-                          const Center(
-                            child: Icon(
-                              Icons.water_drop_rounded,
-                              size: 22,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
@@ -791,248 +725,6 @@ class _ChatSectionState extends State<ChatSection>
       ],
     );
   }
-}
-
-/// A teardrop of ink that launches from the send orb, flies up with a
-/// liquid stretch, then lands with a bouncy squash — like a water drop
-/// leaving the button and becoming the message.
-class _BouncySendDrop extends StatelessWidget {
-  const _BouncySendDrop({
-    super.key,
-    required this.origin,
-    required this.controller,
-    required this.wave,
-  });
-
-  final Offset origin;
-  final AnimationController controller;
-  final AnimationController wave;
-
-  @override
-  Widget build(BuildContext context) {
-    // Flight: ease out of the button, then an elastic settle at the top.
-    final flight = CurvedAnimation(
-      parent: controller,
-      curve: const Interval(0, .72, curve: Curves.easeOutCubic),
-    );
-    final bounce = CurvedAnimation(
-      parent: controller,
-      curve: const Interval(.55, 1, curve: Curves.elasticOut),
-    );
-    final fade = CurvedAnimation(
-      parent: controller,
-      curve: const Interval(.82, 1, curve: Curves.easeIn),
-    );
-
-    return AnimatedBuilder(
-      animation: Listenable.merge([controller, wave]),
-      builder: (context, _) {
-        final t = flight.value;
-        // Arc upward toward the outgoing-message side, with a liquid wobble.
-        final wobble = sin(t * pi * 2.2) * 10 * (1 - t);
-        final dx = origin.dx - 36 + wobble - 18 * t;
-        final dy = origin.dy - 28 - 168 * t - 22 * sin(t * pi);
-        // Stretch tall while rising, then squash on the bounce.
-        final stretchY = 1 + .55 * sin(t * pi) * (1 - bounce.value.clamp(0, 1));
-        final stretchX = 1 / (stretchY * .92 + .08);
-        final land = bounce.value.clamp(0.0, 1.2);
-        final scale = (.55 + .55 * t) * (1.15 - .2 * (1 - land).abs());
-        final opacity = (1 - fade.value).clamp(0.0, 1.0);
-
-        return Positioned(
-          left: dx - 18,
-          top: dy - 22,
-          child: IgnorePointer(
-            child: Opacity(
-              opacity: opacity,
-              child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.diagonal3Values(
-                  stretchX * scale,
-                  stretchY * scale,
-                  1,
-                ),
-                child: SizedBox(
-                  width: 36,
-                  height: 44,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Soft glow trail under the drop.
-                      Positioned(
-                        bottom: 2,
-                        child: Container(
-                          width: 22,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _ink.withValues(alpha: .28 * opacity),
-                                blurRadius: 14,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // Tiny satellite droplets peeling off in flight.
-                      for (final satellite in const [
-                        (Offset(-14, 10), .42),
-                        (Offset(12, 16), .34),
-                        (Offset(-6, 22), .28),
-                      ])
-                        Positioned(
-                          left: 18 + satellite.$1.dx * t - 4,
-                          top: 18 + satellite.$1.dy * t * .7,
-                          child: Opacity(
-                            opacity: (sin(t * pi) * satellite.$2).clamp(0, 1),
-                            child: Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _ink.withValues(alpha: .85),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: .45),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      CustomPaint(
-                        size: const Size(36, 44),
-                        painter: _WaterDropPainter(
-                          phase: wave.value * 2 * pi,
-                          fill: .9,
-                        ),
-                      ),
-                      // Landing splash ring near the end of the flight.
-                      if (controller.value > .7)
-                        CustomPaint(
-                          size: const Size(36, 44),
-                          painter: _SplashRingPainter(
-                            progress: ((controller.value - .7) / .3).clamp(
-                              0,
-                              1,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Classic water-drop silhouette filled with waving ink.
-class _WaterDropPainter extends CustomPainter {
-  _WaterDropPainter({required this.phase, required this.fill});
-
-  final double phase;
-  final double fill;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(size.width * .5, 0)
-      ..cubicTo(
-        size.width * .92,
-        size.height * .38,
-        size.width * .98,
-        size.height * .62,
-        size.width * .5,
-        size.height * .96,
-      )
-      ..cubicTo(
-        size.width * .02,
-        size.height * .62,
-        size.width * .08,
-        size.height * .38,
-        size.width * .5,
-        0,
-      )
-      ..close();
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = BrandColors.secondarySurface.withValues(alpha: .93)
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Colors.white.withValues(alpha: .35)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
-
-    // Liquid surface inside the drop.
-    canvas.save();
-    canvas.clipPath(path);
-    final level = size.height * (1 - fill.clamp(0.0, 1.0));
-    final wave = Path()..moveTo(0, size.height);
-    for (double x = 0; x <= size.width + 2; x += 2) {
-      final y = level + sin(phase + (x / size.width) * 2.2 * pi) * 2.4;
-      wave.lineTo(x, y);
-    }
-    wave
-      ..lineTo(size.width, size.height)
-      ..close();
-    canvas.drawPath(wave, Paint()..color = Colors.white.withValues(alpha: .14));
-    // Specular highlight.
-    canvas.drawCircle(
-      Offset(size.width * .35, size.height * .28),
-      size.width * .12,
-      Paint()..color = Colors.white.withValues(alpha: .35),
-    );
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _WaterDropPainter oldDelegate) =>
-      oldDelegate.phase != phase || oldDelegate.fill != fill;
-}
-
-/// Expanding splash ring when the drop lands.
-class _SplashRingPainter extends CustomPainter {
-  _SplashRingPainter({required this.progress});
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * .55);
-    final radius = 8 + 22 * progress;
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = _ink.withValues(alpha: .35 * (1 - progress))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4 * (1 - progress * .5),
-    );
-    // Secondary ripple.
-    canvas.drawCircle(
-      center,
-      radius * .62,
-      Paint()
-        ..color = Colors.white.withValues(alpha: .25 * (1 - progress))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _SplashRingPainter oldDelegate) =>
-      oldDelegate.progress != progress;
 }
 
 // -------------------------------------------------------------- list chrome
@@ -1784,12 +1476,12 @@ class _Bubble extends StatelessWidget {
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 480),
-      curve: Curves.easeOutBack,
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeOutCubic,
       builder: (context, t, child) => Transform.translate(
-        offset: Offset(0, 10 * (1 - t.clamp(0, 1))),
+        offset: Offset(0, 6 * (1 - t.clamp(0, 1))),
         child: Transform.scale(
-          scale: (.86 + .14 * t).clamp(0, 1.06),
+          scale: (.94 + .06 * t).clamp(0, 1),
           alignment: mine ? Alignment.bottomRight : Alignment.bottomLeft,
           child: Opacity(opacity: t.clamp(0, 1), child: child),
         ),
@@ -2029,7 +1721,7 @@ class _MessageOptionsPopover extends StatefulWidget {
 
 class _MessageOptionsPopoverState extends State<_MessageOptionsPopover>
     with SingleTickerProviderStateMixin {
-  static const _width = 228.0;
+  static const _width = 240.0;
   static const _height = 168.0;
 
   late final AnimationController _wave = AnimationController(
@@ -2245,37 +1937,63 @@ class _PopoverTile extends StatelessWidget {
                         ),
                       ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Row(
                         children: [
-                          Icon(
-                            icon,
-                            size: 16,
-                            color: destructive
-                                ? accent
-                                : (selected
-                                      ? labelColor
-                                      : _ink.withValues(alpha: .7)),
-                          ),
-                          const SizedBox(width: 8),
+                          // Matching side rails keep icon + label optically centered
+                          // whether or not the checkmark is showing.
+                          const SizedBox(width: 18),
                           Expanded(
-                            child: Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: labelColor,
-                              ),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      icon,
+                                      size: 16,
+                                      color: destructive
+                                          ? accent
+                                          : (selected
+                                                ? labelColor
+                                                : _ink.withValues(alpha: .7)),
+                                    ),
+                                    const SizedBox(width: 7),
+                                    ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth:
+                                            (constraints.maxWidth - 23)
+                                                .clamp(0, double.infinity),
+                                      ),
+                                      child: Text(
+                                        label,
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: -.1,
+                                          height: 1.1,
+                                          color: labelColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                           ),
-                          if (selected && !destructive)
-                            Icon(
-                              Icons.check_rounded,
-                              size: 15,
-                              color: labelColor,
-                            ),
+                          SizedBox(
+                            width: 18,
+                            child: selected && !destructive
+                                ? Icon(
+                                    Icons.check_rounded,
+                                    size: 15,
+                                    color: labelColor,
+                                  )
+                                : null,
+                          ),
                         ],
                       ),
                     ),

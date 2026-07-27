@@ -61,6 +61,7 @@ flutter:
 
   assets:
     - Assets/center_logo.png
+    - Assets/logss-removebg-preview.png
     - Assets/feed/
     - Assets/shop/
     - Assets/courses/

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'login_page.dart';
+import 'splash_page.dart';
 import 'theme/brand_colors.dart';
 
 void main() {
@@ -38,7 +38,7 @@ class InnovatorApp extends StatelessWidget {
         ),
         splashFactory: NoSplash.splashFactory,
       ),
-      home: const LoginPage(),
+      home: const SplashPage(),
     );
   }
 }

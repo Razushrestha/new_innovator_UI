@@ -1566,7 +1566,7 @@ class _CourseDetailPageState extends State<_CourseDetailPage>
                       ),
                       const SizedBox(height: 28),
                       Text(
-                        'What you\'ll get',
+                        'Curriculum',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -1575,18 +1575,8 @@ class _CourseDetailPageState extends State<_CourseDetailPage>
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _DetailPerk(
-                        icon: Icons.play_lesson_rounded,
-                        title: '${course.lessons} guided episodes',
-                        subtitle: 'Stream anytime on any device',
-                      ),
-                      const SizedBox(height: 8),
-                      _DetailPerk(
-                        icon: Icons.menu_book_rounded,
-                        title: '${course.chapters} structured chapters',
-                        subtitle: 'Learn in a clear, progressive path',
-                      ),
-                      const SizedBox(height: 8),
+                      _CourseCurriculum(course: course),
+                      const SizedBox(height: 12),
                       const _DetailPerk(
                         icon: Icons.workspace_premium_rounded,
                         title: 'Completion certificate',
@@ -1802,6 +1792,209 @@ class _DetailPerk extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChapterOutline {
+  const _ChapterOutline({
+    required this.title,
+    required this.episodes,
+  });
+
+  final String title;
+  final List<String> episodes;
+}
+
+List<_ChapterOutline> _curriculumFor(_Course course) {
+  final chapterCount = course.chapters.clamp(1, 50);
+  final lessonCount = course.lessons.clamp(chapterCount, 200);
+  final base = lessonCount ~/ chapterCount;
+  var rem = lessonCount % chapterCount;
+  final chapters = <_ChapterOutline>[];
+  var episodeNo = 1;
+
+  for (var i = 0; i < chapterCount; i++) {
+    final count = base + (rem > 0 ? 1 : 0);
+    if (rem > 0) rem--;
+    final episodes = [
+      for (var j = 0; j < count; j++)
+        'Episode ${episodeNo++}: Lesson focus ${j + 1}',
+    ];
+    chapters.add(
+      _ChapterOutline(
+        title: 'Chapter ${i + 1}',
+        episodes: episodes,
+      ),
+    );
+  }
+  return chapters;
+}
+
+/// Chapters with their episodes listed just underneath each chapter.
+class _CourseCurriculum extends StatefulWidget {
+  const _CourseCurriculum({required this.course});
+
+  final _Course course;
+
+  @override
+  State<_CourseCurriculum> createState() => _CourseCurriculumState();
+}
+
+class _CourseCurriculumState extends State<_CourseCurriculum> {
+  late final List<_ChapterOutline> _chapters = _curriculumFor(widget.course);
+  late final Set<int> _open = {0};
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var i = 0; i < _chapters.length; i++) ...[
+          if (i > 0) const SizedBox(height: 8),
+          _ChapterBlock(
+            index: i,
+            chapter: _chapters[i],
+            expanded: _open.contains(i),
+            onToggle: () {
+              HapticFeedback.selectionClick();
+              setState(() {
+                if (_open.contains(i)) {
+                  _open.remove(i);
+                } else {
+                  _open.add(i);
+                }
+              });
+            },
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ChapterBlock extends StatelessWidget {
+  const _ChapterBlock({
+    required this.index,
+    required this.chapter,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  final int index;
+  final _ChapterOutline chapter;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return FastGlass(
+      borderRadius: BorderRadius.circular(18),
+      opacity: .78,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FastTap(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: BrandColors.accent.withValues(alpha: .18),
+                    ),
+                    child: const Icon(
+                      Icons.menu_book_rounded,
+                      size: 18,
+                      color: BrandColors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          chapter.title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _ink,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${chapter.episodes.length} episodes',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _ink.withValues(alpha: .48),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: expanded ? .5 : 0,
+                    duration: const Duration(milliseconds: 220),
+                    child: Icon(
+                      Icons.expand_more_rounded,
+                      color: _ink.withValues(alpha: .4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity),
+            secondChild: Column(
+              children: [
+                Divider(height: 1, color: _ink.withValues(alpha: .08)),
+                for (var e = 0; e < chapter.episodes.length; e++)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      14,
+                      e == 0 ? 10 : 6,
+                      14,
+                      e == chapter.episodes.length - 1 ? 12 : 6,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.play_circle_outline_rounded,
+                          size: 18,
+                          color: BrandColors.accent.withValues(alpha: .9),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            chapter.episodes[e],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _ink.withValues(alpha: .78),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            crossFadeState: expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 220),
+            sizeCurve: Curves.easeOutCubic,
           ),
         ],
       ),
