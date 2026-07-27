@@ -1,10 +1,13 @@
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../theme/brand_colors.dart';
 import 'liquid_pressable.dart';
+import 'wave_fill_painter.dart';
 
-const _ink = Color(0xFF1B1E28);
+const _ink = BrandColors.ink;
 
 class GlassDrawerItem {
   const GlassDrawerItem({required this.icon, required this.label, this.onTap});
@@ -87,32 +90,17 @@ class GlassDrawer extends StatelessWidget {
             borderRadius: radius,
             boxShadow: [
               BoxShadow(
-                color: _ink.withValues(alpha: .22),
-                blurRadius: 38,
-                offset: const Offset(6, 18),
+                color: _ink.withValues(alpha: .06),
+                blurRadius: 42,
+                offset: const Offset(4, 16),
               ),
             ],
           ),
           child: ClipRRect(
             borderRadius: radius,
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: radius,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withValues(alpha: .74),
-                      Colors.white.withValues(alpha: .44),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: .95),
-                    width: 1.2,
-                  ),
-                ),
+              filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
+              child: _LiquidDrawerSurface(
                 child: SafeArea(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -128,7 +116,7 @@ class GlassDrawer extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 22),
                         child: Container(
                           height: 1,
-                          color: _ink.withValues(alpha: .08),
+                          color: _ink.withValues(alpha: .06),
                         ),
                       ),
                       Expanded(
@@ -148,7 +136,7 @@ class GlassDrawer extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 22),
                         child: Container(
                           height: 1,
-                          color: _ink.withValues(alpha: .08),
+                          color: _ink.withValues(alpha: .06),
                         ),
                       ),
                       Padding(
@@ -168,6 +156,99 @@ class GlassDrawer extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Near-clear glass fill with a soft liquid pool waving at the bottom.
+class _LiquidDrawerSurface extends StatefulWidget {
+  const _LiquidDrawerSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_LiquidDrawerSurface> createState() => _LiquidDrawerSurfaceState();
+}
+
+class _LiquidDrawerSurfaceState extends State<_LiquidDrawerSurface>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _wave = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _wave.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _wave,
+      builder: (context, child) {
+        final phase = _wave.value * 2 * pi;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: .035),
+                Colors.white.withValues(alpha: .01),
+              ],
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: .14),
+              width: 1.0,
+            ),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CustomPaint(
+                painter: WaveFillPainter(
+                  phase: phase + 1.4,
+                  fill: .26,
+                  color: BrandColors.accent.withValues(alpha: .03),
+                  amplitude: 7,
+                  frequency: 1.25,
+                ),
+              ),
+              CustomPaint(
+                painter: WaveFillPainter(
+                  phase: phase,
+                  fill: .16,
+                  color: Colors.white.withValues(alpha: .025),
+                  amplitude: 4.5,
+                  frequency: 1.6,
+                ),
+              ),
+              IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(32),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0, .35, 1],
+                      colors: [
+                        Colors.white.withValues(alpha: .06),
+                        Colors.white.withValues(alpha: .0),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              child!,
+            ],
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }
@@ -194,7 +275,7 @@ class _ProfileHeader extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFF2A2F3E), Color(0xFF8A93A8)],
+                colors: [BrandColors.secondarySurface, Color(0xFF8A93A8)],
               ),
             ),
             child: Container(
@@ -300,8 +381,8 @@ class _DrawerTile extends StatelessWidget {
               height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: .65),
-                border: Border.all(color: Colors.white.withValues(alpha: .95)),
+                color: Colors.white.withValues(alpha: .14),
+                border: Border.all(color: Colors.white.withValues(alpha: .22)),
               ),
               child: Icon(icon, size: 18, color: color.withValues(alpha: .75)),
             ),

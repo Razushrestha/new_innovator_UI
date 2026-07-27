@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'theme/brand_colors.dart';
 
 import 'widgets/animated_blob_background.dart';
 import 'widgets/glass_card.dart';
@@ -8,7 +9,7 @@ import 'widgets/glass_text_field.dart';
 import 'widgets/google_logo.dart';
 import 'widgets/liquid_button.dart';
 
-const _ink = Color(0xFF1B1E28);
+const _ink = BrandColors.ink;
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -32,9 +33,7 @@ class _SignupPageState extends State<SignupPage>
   late final Animation<Offset> _slide = Tween<Offset>(
     begin: const Offset(0, .06),
     end: Offset.zero,
-  ).animate(
-    CurvedAnimation(parent: _entrance, curve: Curves.easeOutCubic),
-  );
+  ).animate(CurvedAnimation(parent: _entrance, curve: Curves.easeOutCubic));
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -116,10 +115,7 @@ class _SignupPageState extends State<SignupPage>
                                 setState(() => _gender = gender),
                           ),
                           const SizedBox(height: 24),
-                          LiquidButton(
-                            label: 'Sign Up',
-                            onTap: () {},
-                          ),
+                          LiquidButton(label: 'Sign Up', onTap: () {}),
                           const SizedBox(height: 18),
                           const _OrDivider(),
                           const SizedBox(height: 18),
@@ -146,7 +142,9 @@ class _SignupPageState extends State<SignupPage>
                                 onTap: () => Navigator.of(context).pop(),
                                 child: const Padding(
                                   padding: EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 8),
+                                    horizontal: 6,
+                                    vertical: 8,
+                                  ),
                                   child: Text(
                                     'Log in',
                                     style: TextStyle(
@@ -187,10 +185,7 @@ class _OrDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
             'or',
-            style: TextStyle(
-              fontSize: 12.5,
-              color: _ink.withValues(alpha: .4),
-            ),
+            style: TextStyle(fontSize: 12.5, color: _ink.withValues(alpha: .4)),
           ),
         ),
         Expanded(

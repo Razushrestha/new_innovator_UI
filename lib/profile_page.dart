@@ -1,15 +1,226 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'theme/brand_colors.dart';
+import 'widgets/animated_blob_background.dart';
+import 'widgets/fast_glass.dart';
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
-const _ink = Color(0xFF1B1E28);
-const _muted = Color(0xFF7A8194);
+const _ink = BrandColors.ink;
+
+const _defaultCover = 'Assets/feed/post_07.jpg';
+
+/// Student / learner profile fields editable from the profile menu.
+class _LearnerInfo {
+  const _LearnerInfo({
+    required this.displayName,
+    required this.fullName,
+    required this.bio,
+    required this.email,
+    required this.phone,
+    required this.dateOfBirth,
+    required this.gender,
+    required this.city,
+    required this.country,
+    required this.school,
+    required this.faculty,
+    required this.degree,
+    required this.major,
+    required this.yearLevel,
+    required this.studentId,
+    required this.enrollmentYear,
+    required this.skills,
+    required this.learningGoals,
+    required this.language,
+    required this.portfolio,
+  });
+
+  final String displayName;
+  final String fullName;
+  final String bio;
+  final String email;
+  final String phone;
+  final String dateOfBirth;
+  final String gender;
+  final String city;
+  final String country;
+  final String school;
+  final String faculty;
+  final String degree;
+  final String major;
+  final String yearLevel;
+  final String studentId;
+  final String enrollmentYear;
+  final String skills;
+  final String learningGoals;
+  final String language;
+  final String portfolio;
+
+  _LearnerInfo copyWith({
+    String? displayName,
+    String? fullName,
+    String? bio,
+    String? email,
+    String? phone,
+    String? dateOfBirth,
+    String? gender,
+    String? city,
+    String? country,
+    String? school,
+    String? faculty,
+    String? degree,
+    String? major,
+    String? yearLevel,
+    String? studentId,
+    String? enrollmentYear,
+    String? skills,
+    String? learningGoals,
+    String? language,
+    String? portfolio,
+  }) {
+    return _LearnerInfo(
+      displayName: displayName ?? this.displayName,
+      fullName: fullName ?? this.fullName,
+      bio: bio ?? this.bio,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      gender: gender ?? this.gender,
+      city: city ?? this.city,
+      country: country ?? this.country,
+      school: school ?? this.school,
+      faculty: faculty ?? this.faculty,
+      degree: degree ?? this.degree,
+      major: major ?? this.major,
+      yearLevel: yearLevel ?? this.yearLevel,
+      studentId: studentId ?? this.studentId,
+      enrollmentYear: enrollmentYear ?? this.enrollmentYear,
+      skills: skills ?? this.skills,
+      learningGoals: learningGoals ?? this.learningGoals,
+      language: language ?? this.language,
+      portfolio: portfolio ?? this.portfolio,
+    );
+  }
+}
+
+_LearnerInfo _defaultLearnerInfo(String name) => _LearnerInfo(
+      displayName: name,
+      fullName: name,
+      bio:
+          'Building liquid products at Innovator. Design systems, Flutter, and '
+          'ideas that ship. Always open to collaborate on the next breakthrough.',
+      email: '${name.toLowerCase().replaceAll(' ', '.')}@innovator.edu',
+      phone: '+977 98X-XXX-XXXX',
+      dateOfBirth: '15 Mar 2003',
+      gender: 'Prefer not to say',
+      city: 'Kathmandu',
+      country: 'Nepal',
+      school: 'Innovator University',
+      faculty: 'School of Technology',
+      degree: 'Bachelor',
+      major: 'Computer Science',
+      yearLevel: '3rd Year',
+      studentId: 'INV-2023-0842',
+      enrollmentYear: '2023',
+      skills: 'Flutter, UI Design, Product Thinking',
+      learningGoals: 'Ship AI-assisted learning tools',
+      language: 'English, Nepali',
+      portfolio: 'innovator.app/u/${name.toLowerCase()}',
+    );
+
+class _Person {
+  const _Person({
+    required this.name,
+    required this.title,
+    required this.colors,
+  });
+
+  final String name;
+  final String title;
+  final List<Color> colors;
+}
+
+/// People following the user (Collaborators).
+const _collaboratorsList = [
+  _Person(
+    name: 'Maya Chen',
+    title: 'Product Designer',
+    colors: [Color(0xFF4C1D95), Color(0xFF7C3AED)],
+  ),
+  _Person(
+    name: 'Aarav Sharma',
+    title: 'Flutter Developer',
+    colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+  ),
+  _Person(
+    name: 'Priya Thapa',
+    title: 'Brand Strategist',
+    colors: [Color(0xFF9F1239), Color(0xFFE11D48)],
+  ),
+  _Person(
+    name: 'Rohan KC',
+    title: 'Growth Lead',
+    colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+  ),
+  _Person(
+    name: 'Sneha Rai',
+    title: 'UX Researcher',
+    colors: [Color(0xFF9D174D), Color(0xFFDB2777)],
+  ),
+  _Person(
+    name: 'Kabir Joshi',
+    title: 'Full-stack Engineer',
+    colors: [Color(0xFF3730A3), Color(0xFF4F46E5)],
+  ),
+  _Person(
+    name: 'Anisha Gurung',
+    title: 'Motion Designer',
+    colors: [Color(0xFF92400E), Color(0xFFB45309)],
+  ),
+  _Person(
+    name: 'Nischal Adhikari',
+    title: 'Founder · Atlas',
+    colors: [Color(0xFF166534), Color(0xFF16A34A)],
+  ),
+];
+
+/// People the user is following (Collaborating).
+const _collaboratingList = [
+  _Person(
+    name: 'Elena Voss',
+    title: 'Design Systems',
+    colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+  ),
+  _Person(
+    name: 'Samir Basnet',
+    title: 'AI Engineer',
+    colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
+  ),
+  _Person(
+    name: 'Innovator Team',
+    title: 'Official',
+    colors: [Color(0xFFE0A800), BrandColors.accent],
+  ),
+  _Person(
+    name: 'Lina Ortega',
+    title: 'Product Manager',
+    colors: [Color(0xFF5C2D91), Color(0xFF7C3AED)],
+  ),
+  _Person(
+    name: 'Tenzin Lama',
+    title: 'Illustrator',
+    colors: [Color(0xFF9D174D), Color(0xFFDB2777)],
+  ),
+  _Person(
+    name: 'Hana Park',
+    title: 'Frontend Lead',
+    colors: [Color(0xFF0A1C30), Color(0xFF14304A)],
+  ),
+];
 
 class _TitleBadge {
   const _TitleBadge({
@@ -27,22 +238,22 @@ const _titles = [
   _TitleBadge(
     label: 'Innovator',
     icon: Icons.auto_awesome_rounded,
-    colors: [Color(0xFF4C1D95), Color(0xFF7C3AED)],
+    colors: [Color(0xFFE0A800), BrandColors.accent],
   ),
   _TitleBadge(
     label: 'Creator',
     icon: Icons.palette_rounded,
-    colors: [Color(0xFF9D174D), Color(0xFFDB2777)],
+    colors: [BrandColors.secondarySurface, Color(0xFF14304A)],
   ),
   _TitleBadge(
     label: 'Developer',
     icon: Icons.code_rounded,
-    colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+    colors: [BrandColors.secondarySurface, Color(0xFF0F2A44)],
   ),
   _TitleBadge(
     label: 'Programmer',
     icon: Icons.terminal_rounded,
-    colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+    colors: [Color(0xFF0A1C30), BrandColors.secondarySurface],
   ),
 ];
 
@@ -50,12 +261,16 @@ class _Innovation {
   const _Innovation({
     required this.title,
     required this.subtitle,
+    required this.date,
+    required this.coverAsset,
     required this.icon,
     required this.colors,
   });
 
   final String title;
   final String subtitle;
+  final String date;
+  final String coverAsset;
   final IconData icon;
   final List<Color> colors;
 }
@@ -63,44 +278,56 @@ class _Innovation {
 const _innovations = [
   _Innovation(
     title: 'Liquid Glass Nav',
-    subtitle: 'Dockable bar with spring physics',
+    subtitle: 'Dockable bar with spring physics that feels alive on every tap.',
+    date: 'Jul 22, 2026',
+    coverAsset: 'Assets/feed/post_01.jpg',
     icon: Icons.water_drop_rounded,
     colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
   ),
   _Innovation(
     title: 'Khalti Checkout',
-    subtitle: 'Nepal-ready liquid payments',
+    subtitle: 'Nepal-ready liquid payments with a glass checkout sheet.',
+    date: 'Jul 18, 2026',
+    coverAsset: 'Assets/feed/post_02.jpg',
     icon: Icons.account_balance_wallet_rounded,
     colors: [Color(0xFF5C2D91), Color(0xFF7C3AED)],
   ),
   _Innovation(
     title: 'Wave Fill System',
-    subtitle: 'Shared liquid surfaces everywhere',
+    subtitle: 'Shared liquid surfaces that ripple across the whole app.',
+    date: 'Jul 12, 2026',
+    coverAsset: 'Assets/feed/post_03.jpg',
     icon: Icons.waves_rounded,
     colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
   ),
   _Innovation(
     title: 'Bouncy Chat Drop',
-    subtitle: 'Messages that fly like water',
+    subtitle: 'Messages that fly in like water droplets with soft bounce.',
+    date: 'Jul 5, 2026',
+    coverAsset: 'Assets/feed/post_04.jpg',
     icon: Icons.chat_bubble_rounded,
     colors: [Color(0xFF9D174D), Color(0xFFDB2777)],
   ),
   _Innovation(
     title: 'E-learning Rails',
-    subtitle: 'Featured & top-selling courses',
+    subtitle: 'Featured and top-selling courses in smooth horizontal rails.',
+    date: 'Jun 28, 2026',
+    coverAsset: 'Assets/feed/post_05.jpg',
     icon: Icons.school_rounded,
     colors: [Color(0xFF92400E), Color(0xFFB45309)],
   ),
   _Innovation(
     title: 'Search Pill',
-    subtitle: 'Icon that elongates into a field',
+    subtitle: 'An icon that elongates into a focused search field.',
+    date: 'Jun 20, 2026',
+    coverAsset: 'Assets/feed/post_06.jpg',
     icon: Icons.search_rounded,
     colors: [Color(0xFF3730A3), Color(0xFF4F46E5)],
   ),
 ];
 
-/// Profile as an in-shell section: avatar with camera, name + titled badge,
-/// Collaborators / Collaborating / Innovation stats, then an innovations grid.
+/// Profile with cover banner, overlapping avatar, identity row, stats, and
+/// innovations feed.
 class ProfileSection extends StatefulWidget {
   const ProfileSection({
     super.key,
@@ -119,10 +346,14 @@ class _ProfileSectionState extends State<ProfileSection>
     with TickerProviderStateMixin {
   int _titleIndex = 0;
   Uint8List? _avatarBytes;
+  Uint8List? _coverBytes;
+  late _LearnerInfo _info = _defaultLearnerInfo(widget.name);
 
   static const _collaborators = 128;
   static const _collaborating = 64;
   static const _innovationCount = 6;
+  static const _avatarSize = 92.0;
+  static const _coverHeight = 168.0;
 
   late final AnimationController _entrance = AnimationController(
     vsync: this,
@@ -139,6 +370,26 @@ class _ProfileSectionState extends State<ProfileSection>
     _entrance.dispose();
     _wave.dispose();
     super.dispose();
+  }
+
+  void _openPeopleSheet(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required List<_Person> people,
+  }) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: _ink.withValues(alpha: .28),
+      builder: (_) => _PeopleSheet(
+        title: title,
+        subtitle: subtitle,
+        people: people,
+      ),
+    );
   }
 
   Widget _stagger({required int index, required Widget child}) {
@@ -163,25 +414,38 @@ class _ProfileSectionState extends State<ProfileSection>
     );
   }
 
-  Future<void> _changePhoto() async {
-    HapticFeedback.mediumImpact();
+  Future<Uint8List?> _pickImage() async {
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.image,
         withData: true,
       );
-      final bytes = result?.files.single.bytes;
-      if (bytes != null && mounted) {
-        setState(() => _avatarBytes = bytes);
-      }
+      return result?.files.single.bytes;
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.floating,
           content: Text('Could not open the photo picker'),
         ),
       );
+      return null;
+    }
+  }
+
+  Future<void> _changePhoto() async {
+    HapticFeedback.mediumImpact();
+    final bytes = await _pickImage();
+    if (bytes != null && mounted) {
+      setState(() => _avatarBytes = bytes);
+    }
+  }
+
+  Future<void> _changeCover() async {
+    HapticFeedback.mediumImpact();
+    final bytes = await _pickImage();
+    if (bytes != null && mounted) {
+      setState(() => _coverBytes = bytes);
     }
   }
 
@@ -190,87 +454,851 @@ class _ProfileSectionState extends State<ProfileSection>
     setState(() => _titleIndex = (_titleIndex + 1) % _titles.length);
   }
 
+  void _openProfileMenu() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: _ink.withValues(alpha: .28),
+      builder: (ctx) => _ProfileMenuSheet(
+        onEditInfo: () {
+          Navigator.of(ctx).pop();
+          _openEditProfile();
+        },
+        onChangeCover: () {
+          Navigator.of(ctx).pop();
+          _changeCover();
+        },
+        onChangePhoto: () {
+          Navigator.of(ctx).pop();
+          _changePhoto();
+        },
+      ),
+    );
+  }
+
+  Future<void> _openEditProfile() async {
+    HapticFeedback.mediumImpact();
+    final updated = await Navigator.of(context).push<_LearnerInfo>(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 380),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (_, animation, __) => FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          ),
+          child: _EditProfilePage(info: _info),
+        ),
+      ),
+    );
+    if (updated != null && mounted) {
+      setState(() => _info = updated);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final padding = widget.contentPadding;
     final title = _titles[_titleIndex];
+    final overlap = _avatarSize * .55;
+    final displayName =
+        _info.displayName.isEmpty ? widget.name : _info.displayName;
 
     return ListView(
-      padding: EdgeInsets.fromLTRB(20, padding.top + 8, 20, padding.bottom + 6),
+      padding: EdgeInsets.only(bottom: padding.bottom + 6),
       children: [
         _stagger(
           index: 0,
-          child: _AvatarBlock(
-            name: widget.name,
-            bytes: _avatarBytes,
-            wave: _wave,
+          child: _CoverHeader(
+            coverHeight: _coverHeight,
+            avatarSize: _avatarSize,
+            topInset: padding.top,
+            overlap: overlap,
+            coverBytes: _coverBytes,
+            avatarBytes: _avatarBytes,
+            name: displayName,
             accent: title.colors,
-            onCamera: _changePhoto,
+            wave: _wave,
+            onChangeCover: _changeCover,
+            onChangeAvatar: _changePhoto,
+            onMenu: _openProfileMenu,
           ),
         ),
-        const SizedBox(height: 16),
-        _stagger(
-          index: 1,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: Column(
             children: [
-              Text(
-                widget.name,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: _ink,
-                  letterSpacing: -.4,
+              _stagger(
+                index: 1,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                              letterSpacing: -.4,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _TitleBadgeChip(
+                          badge: title,
+                          wave: _wave,
+                          onTap: _cycleTitle,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${_info.school} · ${_info.major} · ${_info.yearLevel}',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: _ink.withValues(alpha: .48),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _info.bio,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        height: 1.45,
+                        color: _ink.withValues(alpha: .72),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              _TitleBadgeChip(badge: title, wave: _wave, onTap: _cycleTitle),
+              const SizedBox(height: 18),
+              _stagger(
+                index: 2,
+                child: _StatsRow(
+                  collaborators: _collaborators,
+                  collaborating: _collaborating,
+                  innovations: _innovationCount,
+                  onCollaborators: () => _openPeopleSheet(
+                    context,
+                    title: 'Collaborators',
+                    subtitle: 'People following you',
+                    people: _collaboratorsList,
+                  ),
+                  onCollaborating: () => _openPeopleSheet(
+                    context,
+                    title: 'Collaborating',
+                    subtitle: 'People you follow',
+                    people: _collaboratingList,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+              _stagger(
+                index: 3,
+                child: const Center(
+                  child: Text(
+                    'Innovations',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                      letterSpacing: -.2,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _stagger(index: 4, child: _InnovationsFeed(wave: _wave)),
             ],
           ),
         ),
-        const SizedBox(height: 22),
-        _stagger(
-          index: 2,
-          child: _StatsRow(
-            wave: _wave,
-            collaborators: _collaborators,
-            collaborating: _collaborating,
-            innovations: _innovationCount,
-          ),
-        ),
-        const SizedBox(height: 24),
-        _stagger(
-          index: 3,
-          child: AnimatedBuilder(
-            animation: _wave,
-            builder: (context, child) => Transform.translate(
-              offset: Offset(0, sin(_wave.value * 2 * pi) * 2.4),
-              child: child,
-            ),
-            child: const Center(
-              child: Text(
-                'Innovations',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: _ink,
-                  letterSpacing: -.2,
+      ],
+    );
+  }
+}
+
+// ----------------------------------------------------------------- cover
+
+class _CoverHeader extends StatelessWidget {
+  const _CoverHeader({
+    required this.coverHeight,
+    required this.avatarSize,
+    required this.topInset,
+    required this.overlap,
+    required this.coverBytes,
+    required this.avatarBytes,
+    required this.name,
+    required this.accent,
+    required this.wave,
+    required this.onChangeCover,
+    required this.onChangeAvatar,
+    required this.onMenu,
+  });
+
+  final double coverHeight;
+  final double avatarSize;
+  final double topInset;
+  final double overlap;
+  final Uint8List? coverBytes;
+  final Uint8List? avatarBytes;
+  final String name;
+  final List<Color> accent;
+  final AnimationController wave;
+  final VoidCallback onChangeCover;
+  final VoidCallback onChangeAvatar;
+  final VoidCallback onMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalHeight = coverHeight + (avatarSize - overlap);
+
+    return SizedBox(
+      height: totalHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: coverHeight,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (coverBytes != null)
+                  Image.memory(coverBytes!, fit: BoxFit.cover)
+                else
+                  FastAssetImage(asset: _defaultCover, fit: BoxFit.cover),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x33071323),
+                        Color(0x00071323),
+                        Color(0x66071323),
+                      ],
+                      stops: [0, .45, 1],
+                    ),
+                  ),
                 ),
+                Positioned(
+                  top: topInset + 10,
+                  left: 16,
+                  child: _GlassIconButton(
+                    icon: Icons.more_horiz_rounded,
+                    tooltip: 'Profile options',
+                    onTap: onMenu,
+                  ),
+                ),
+                Positioned(
+                  top: topInset + 10,
+                  right: 16,
+                  child: _GlassIconButton(
+                    icon: Icons.photo_camera_outlined,
+                    tooltip: 'Change cover',
+                    onTap: onChangeCover,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: coverHeight - overlap,
+            child: Center(
+              child: _AvatarBadge(
+                size: avatarSize,
+                name: name,
+                bytes: avatarBytes,
+                wave: wave,
+                accent: accent,
+                onCamera: onChangeAvatar,
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlassIconButton extends StatelessWidget {
+  const _GlassIconButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = LiquidPressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      rippleColor: Colors.white,
+      intensity: 1.1,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: .22),
+          border: Border.all(color: Colors.white.withValues(alpha: .65)),
         ),
-        const SizedBox(height: 14),
-        _stagger(index: 4, child: _InnovationsGrid(wave: _wave)),
-      ],
+        child: Icon(icon, size: 18, color: Colors.white),
+      ),
+    );
+    if (tooltip == null) return button;
+    return Tooltip(message: tooltip!, child: button);
+  }
+}
+
+// ----------------------------------------------------------- profile menu
+
+class _ProfileMenuSheet extends StatelessWidget {
+  const _ProfileMenuSheet({
+    required this.onEditInfo,
+    required this.onChangeCover,
+    required this.onChangePhoto,
+  });
+
+  final VoidCallback onEditInfo;
+  final VoidCallback onChangeCover;
+  final VoidCallback onChangePhoto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
+      child: FastGlass(
+        borderRadius: BorderRadius.circular(28),
+        opacity: .94,
+        padding: const EdgeInsets.fromLTRB(10, 12, 10, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 4.5,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                color: _ink.withValues(alpha: .18),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Profile',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: _ink,
+                letterSpacing: -.2,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _MenuRow(
+              icon: Icons.edit_outlined,
+              title: 'Edit profile & personal information',
+              subtitle: 'Student details, bio, school, and more',
+              onTap: onEditInfo,
+            ),
+            _MenuRow(
+              icon: Icons.photo_camera_outlined,
+              title: 'Change cover photo',
+              subtitle: 'Update your banner image',
+              onTap: onChangeCover,
+            ),
+            _MenuRow(
+              icon: Icons.account_circle_outlined,
+              title: 'Change profile photo',
+              subtitle: 'Update your avatar',
+              onTap: onChangePhoto,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FastTap(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: BrandColors.accent.withValues(alpha: .16),
+              ),
+              child: Icon(icon, size: 20, color: BrandColors.accent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: _ink.withValues(alpha: .48),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: _ink.withValues(alpha: .3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// -------------------------------------------------------- edit profile
+
+class _EditProfilePage extends StatefulWidget {
+  const _EditProfilePage({required this.info});
+
+  final _LearnerInfo info;
+
+  @override
+  State<_EditProfilePage> createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends State<_EditProfilePage> {
+  late final _displayName = TextEditingController(text: widget.info.displayName);
+  late final _fullName = TextEditingController(text: widget.info.fullName);
+  late final _bio = TextEditingController(text: widget.info.bio);
+  late final _email = TextEditingController(text: widget.info.email);
+  late final _phone = TextEditingController(text: widget.info.phone);
+  late final _dob = TextEditingController(text: widget.info.dateOfBirth);
+  late final _gender = TextEditingController(text: widget.info.gender);
+  late final _city = TextEditingController(text: widget.info.city);
+  late final _country = TextEditingController(text: widget.info.country);
+  late final _school = TextEditingController(text: widget.info.school);
+  late final _faculty = TextEditingController(text: widget.info.faculty);
+  late final _degree = TextEditingController(text: widget.info.degree);
+  late final _major = TextEditingController(text: widget.info.major);
+  late final _yearLevel = TextEditingController(text: widget.info.yearLevel);
+  late final _studentId = TextEditingController(text: widget.info.studentId);
+  late final _enrollmentYear =
+      TextEditingController(text: widget.info.enrollmentYear);
+  late final _skills = TextEditingController(text: widget.info.skills);
+  late final _goals = TextEditingController(text: widget.info.learningGoals);
+  late final _language = TextEditingController(text: widget.info.language);
+  late final _portfolio = TextEditingController(text: widget.info.portfolio);
+
+  @override
+  void dispose() {
+    for (final c in [
+      _displayName,
+      _fullName,
+      _bio,
+      _email,
+      _phone,
+      _dob,
+      _gender,
+      _city,
+      _country,
+      _school,
+      _faculty,
+      _degree,
+      _major,
+      _yearLevel,
+      _studentId,
+      _enrollmentYear,
+      _skills,
+      _goals,
+      _language,
+      _portfolio,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _save() {
+    HapticFeedback.mediumImpact();
+    Navigator.of(context).pop(
+      _LearnerInfo(
+        displayName: _displayName.text.trim(),
+        fullName: _fullName.text.trim(),
+        bio: _bio.text.trim(),
+        email: _email.text.trim(),
+        phone: _phone.text.trim(),
+        dateOfBirth: _dob.text.trim(),
+        gender: _gender.text.trim(),
+        city: _city.text.trim(),
+        country: _country.text.trim(),
+        school: _school.text.trim(),
+        faculty: _faculty.text.trim(),
+        degree: _degree.text.trim(),
+        major: _major.text.trim(),
+        yearLevel: _yearLevel.text.trim(),
+        studentId: _studentId.text.trim(),
+        enrollmentYear: _enrollmentYear.text.trim(),
+        skills: _skills.text.trim(),
+        learningGoals: _goals.text.trim(),
+        language: _language.text.trim(),
+        portfolio: _portfolio.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    return Scaffold(
+      backgroundColor: BrandColors.canvas,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AnimatedBlobBackground(animate: false),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 16, 8),
+                  child: Row(
+                    children: [
+                      FastTap(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          Navigator.of(context).pop();
+                        },
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: .7),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .95),
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: 20,
+                            color: _ink.withValues(alpha: .85),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Edit information',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: _ink,
+                            letterSpacing: -.3,
+                          ),
+                        ),
+                      ),
+                      FastTap(
+                        onTap: _save,
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            color: BrandColors.secondarySurface,
+                          ),
+                          child: const Text(
+                            'Save',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(20, 4, 20, 28 + bottom),
+                    children: [
+                      const _FormSectionTitle('Profile'),
+                      _FormField(
+                        label: 'Display name',
+                        controller: _displayName,
+                        hint: 'How you appear on Innovator',
+                      ),
+                      _FormField(
+                        label: 'Full name',
+                        controller: _fullName,
+                        hint: 'Legal / official name',
+                      ),
+                      _FormField(
+                        label: 'Bio',
+                        controller: _bio,
+                        hint: 'A short intro about you',
+                        maxLines: 4,
+                      ),
+                      const SizedBox(height: 18),
+                      const _FormSectionTitle('Personal'),
+                      _FormField(
+                        label: 'Email',
+                        controller: _email,
+                        hint: 'student@school.edu',
+                        keyboard: TextInputType.emailAddress,
+                      ),
+                      _FormField(
+                        label: 'Phone',
+                        controller: _phone,
+                        hint: '+977 …',
+                        keyboard: TextInputType.phone,
+                      ),
+                      _FormField(
+                        label: 'Date of birth',
+                        controller: _dob,
+                        hint: 'DD Mon YYYY',
+                      ),
+                      _FormField(
+                        label: 'Gender',
+                        controller: _gender,
+                        hint: 'Optional',
+                      ),
+                      _FormField(
+                        label: 'City',
+                        controller: _city,
+                        hint: 'Where you study / live',
+                      ),
+                      _FormField(
+                        label: 'Country',
+                        controller: _country,
+                        hint: 'Country',
+                      ),
+                      const SizedBox(height: 18),
+                      const _FormSectionTitle('Student / learner'),
+                      _FormField(
+                        label: 'School / University',
+                        controller: _school,
+                        hint: 'Institution name',
+                      ),
+                      _FormField(
+                        label: 'Faculty / Department',
+                        controller: _faculty,
+                        hint: 'e.g. School of Technology',
+                      ),
+                      _FormField(
+                        label: 'Degree / Program',
+                        controller: _degree,
+                        hint: 'Bachelor, Master, Diploma…',
+                      ),
+                      _FormField(
+                        label: 'Major / Field of study',
+                        controller: _major,
+                        hint: 'e.g. Computer Science',
+                      ),
+                      _FormField(
+                        label: 'Year level',
+                        controller: _yearLevel,
+                        hint: '1st Year, 2nd Year, Graduate…',
+                      ),
+                      _FormField(
+                        label: 'Student ID',
+                        controller: _studentId,
+                        hint: 'Campus ID number',
+                      ),
+                      _FormField(
+                        label: 'Enrollment year',
+                        controller: _enrollmentYear,
+                        hint: 'YYYY',
+                        keyboard: TextInputType.number,
+                      ),
+                      const SizedBox(height: 18),
+                      const _FormSectionTitle('Learning'),
+                      _FormField(
+                        label: 'Skills & interests',
+                        controller: _skills,
+                        hint: 'Comma-separated skills',
+                        maxLines: 2,
+                      ),
+                      _FormField(
+                        label: 'Learning goals',
+                        controller: _goals,
+                        hint: 'What you want to achieve',
+                        maxLines: 3,
+                      ),
+                      _FormField(
+                        label: 'Languages',
+                        controller: _language,
+                        hint: 'Languages you speak',
+                      ),
+                      _FormField(
+                        label: 'Portfolio / LinkedIn',
+                        controller: _portfolio,
+                        hint: 'https://…',
+                        keyboard: TextInputType.url,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FormSectionTitle extends StatelessWidget {
+  const _FormSectionTitle(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+          color: _ink,
+          letterSpacing: -.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _FormField extends StatelessWidget {
+  const _FormField({
+    required this.label,
+    required this.controller,
+    required this.hint,
+    this.maxLines = 1,
+    this.keyboard = TextInputType.text,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String hint;
+  final int maxLines;
+  final TextInputType keyboard;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: FastGlass(
+        borderRadius: BorderRadius.circular(18),
+        opacity: .78,
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .2,
+                color: _ink.withValues(alpha: .48),
+              ),
+            ),
+            const SizedBox(height: 4),
+            TextField(
+              controller: controller,
+              maxLines: maxLines,
+              keyboardType: keyboard,
+              style: const TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+                color: _ink,
+              ),
+              cursorColor: _ink,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: hint,
+                hintStyle: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: _ink.withValues(alpha: .32),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 // ----------------------------------------------------------------- avatar
 
-class _AvatarBlock extends StatelessWidget {
-  const _AvatarBlock({
+class _AvatarBadge extends StatelessWidget {
+  const _AvatarBadge({
+    required this.size,
     required this.name,
     required this.bytes,
     required this.wave,
@@ -278,6 +1306,7 @@ class _AvatarBlock extends StatelessWidget {
     required this.onCamera,
   });
 
+  final double size;
   final String name;
   final Uint8List? bytes;
   final AnimationController wave;
@@ -286,130 +1315,97 @@ class _AvatarBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 128,
-        height: 128,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // Soft breathing ring around the avatar.
-            AnimatedBuilder(
-              animation: wave,
-              builder: (context, _) {
-                final pulse = 1 + .03 * sin(wave.value * 2 * pi);
-                return Transform.scale(
-                  scale: pulse,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: accent,
-                      ),
-                    ),
-                    padding: const EdgeInsets.all(3.5),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: .92),
-                      ),
-                      padding: const EdgeInsets.all(3),
-                      child: ClipOval(
-                        child: SizedBox(
-                          width: 112,
-                          height: 112,
-                          child: bytes != null
-                              ? Image.memory(bytes!, fit: BoxFit.cover)
-                              : Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            accent.first.withValues(alpha: .85),
-                                            accent.last.withValues(alpha: .95),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    CustomPaint(
-                                      painter: WaveFillPainter(
-                                        phase: wave.value * 2 * pi,
-                                        fill: .3,
-                                        color: Colors.white.withValues(
-                                          alpha: .12,
-                                        ),
-                                        amplitude: 4,
-                                        frequency: 1.3,
-                                      ),
-                                    ),
-                                    Center(
-                                      child: Text(
-                                        name.isEmpty
-                                            ? '?'
-                                            : name[0].toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 42,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3.5),
+              boxShadow: [
+                BoxShadow(
+                  color: _ink.withValues(alpha: .18),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-            // Camera droplet — liquid press to change the photo.
-            Positioned(
-              right: 2,
-              bottom: 2,
-              child: LiquidPressable(
-                onTap: onCamera,
-                borderRadius: BorderRadius.circular(18),
-                rippleColor: Colors.white,
-                intensity: 1.2,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFF2A2F3E), Color(0xFF15181F)],
-                    ),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: .9),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _ink.withValues(alpha: .25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+            child: ClipOval(
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: bytes != null
+                    ? Image.memory(bytes!, fit: BoxFit.cover)
+                    : Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  accent.first.withValues(alpha: .9),
+                                  accent.last,
+                                ],
+                              ),
+                            ),
+                          ),
+                          AnimatedBuilder(
+                            animation: wave,
+                            builder: (context, _) => CustomPaint(
+                              painter: WaveFillPainter(
+                                phase: wave.value * 2 * pi,
+                                fill: .3,
+                                color: Colors.white.withValues(alpha: .12),
+                                amplitude: 4,
+                                frequency: 1.3,
+                              ),
+                            ),
+                          ),
+                          Center(
+                            child: Text(
+                              name.isEmpty ? '?' : name[0].toUpperCase(),
+                              style: TextStyle(
+                                fontSize: size * .38,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: LiquidPressable(
+              onTap: onCamera,
+              borderRadius: BorderRadius.circular(16),
+              rippleColor: Colors.white,
+              intensity: 1.2,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: BrandColors.secondarySurface,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(
+                  Icons.camera_alt_rounded,
+                  size: 14,
+                  color: Colors.white,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -439,7 +1435,7 @@ class _TitleBadgeChip extends StatelessWidget {
         animation: wave,
         builder: (context, _) {
           return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
               gradient: LinearGradient(
@@ -447,13 +1443,6 @@ class _TitleBadgeChip extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: badge.colors,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: badge.colors.last.withValues(alpha: .35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(22),
@@ -473,12 +1462,12 @@ class _TitleBadgeChip extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(badge.icon, size: 15, color: Colors.white),
-                      const SizedBox(width: 7),
+                      Icon(badge.icon, size: 14, color: Colors.white),
+                      const SizedBox(width: 6),
                       Text(
                         badge.label,
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                           letterSpacing: .2,
@@ -487,7 +1476,7 @@ class _TitleBadgeChip extends StatelessWidget {
                       const SizedBox(width: 4),
                       Icon(
                         Icons.verified_rounded,
-                        size: 14,
+                        size: 13,
                         color: Colors.white.withValues(alpha: .9),
                       ),
                     ],
@@ -504,77 +1493,73 @@ class _TitleBadgeChip extends StatelessWidget {
 
 // ------------------------------------------------------------------ stats
 
+/// Open premium metrics — no card, no border. Editorial numbers with soft
+/// hairline separators and a gold accent mark under each value.
 class _StatsRow extends StatelessWidget {
   const _StatsRow({
-    required this.wave,
     required this.collaborators,
     required this.collaborating,
     required this.innovations,
+    required this.onCollaborators,
+    required this.onCollaborating,
   });
 
-  final AnimationController wave;
   final int collaborators;
   final int collaborating;
   final int innovations;
+  final VoidCallback onCollaborators;
+  final VoidCallback onCollaborating;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: .55),
-                Colors.white.withValues(alpha: .28),
-              ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: _StatCell(
+              value: collaborators,
+              label: 'Collaborators',
+              onTap: onCollaborators,
             ),
-            border: Border.all(color: Colors.white.withValues(alpha: .8)),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _StatCell(
-                  value: collaborators,
-                  label: 'Collaborators',
-                  wave: wave,
-                  phaseShift: 0,
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 36,
-                color: _ink.withValues(alpha: .08),
-              ),
-              Expanded(
-                child: _StatCell(
-                  value: collaborating,
-                  label: 'Collaborating',
-                  wave: wave,
-                  phaseShift: .8,
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 36,
-                color: _ink.withValues(alpha: .08),
-              ),
-              Expanded(
-                child: _StatCell(
-                  value: innovations,
-                  label: 'Innovation',
-                  wave: wave,
-                  phaseShift: 1.6,
-                ),
-              ),
-            ],
+          _StatDivider(),
+          Expanded(
+            child: _StatCell(
+              value: collaborating,
+              label: 'Collaborating',
+              onTap: onCollaborating,
+            ),
           ),
+          _StatDivider(),
+          Expanded(
+            child: _StatCell(
+              value: innovations,
+              label: 'Innovation',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 28,
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            _ink.withValues(alpha: 0),
+            _ink.withValues(alpha: .14),
+            _ink.withValues(alpha: 0),
+          ],
         ),
       ),
     );
@@ -585,52 +1570,266 @@ class _StatCell extends StatelessWidget {
   const _StatCell({
     required this.value,
     required this.label,
-    required this.wave,
-    required this.phaseShift,
+    this.onTap,
   });
 
   final int value;
   final String label;
-  final AnimationController wave;
-  final double phaseShift;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return LiquidPressable(
-      onTap: () => HapticFeedback.selectionClick(),
-      borderRadius: BorderRadius.circular(16),
-      rippleColor: _ink,
-      intensity: .7,
+    return FastTap(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap?.call();
+      },
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         child: Column(
           children: [
-            AnimatedBuilder(
-              animation: wave,
-              builder: (context, child) => Transform.translate(
-                offset: Offset(0, sin(wave.value * 2 * pi + phaseShift) * 1.8),
-                child: child,
-              ),
-              child: Text(
-                '$value',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: _ink,
-                ),
+            Text(
+              '$value',
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: _ink,
+                letterSpacing: -.6,
+                height: 1,
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 6),
+            Container(
+              width: 18,
+              height: 2.5,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(2),
+                color: BrandColors.accent,
+              ),
+            ),
+            const SizedBox(height: 7),
             Text(
               label,
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 10.5,
+              style: TextStyle(
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: _muted,
+                letterSpacing: .2,
+                color: _ink.withValues(alpha: .48),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------------- people sheet
+
+class _PeopleSheet extends StatelessWidget {
+  const _PeopleSheet({
+    required this.title,
+    required this.subtitle,
+    required this.people,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<_Person> people;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxH = MediaQuery.sizeOf(context).height * .78;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            child: FastGlass(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
+              opacity: .94,
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 42,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        color: _ink.withValues(alpha: .18),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 16, 22, 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: _ink,
+                                    letterSpacing: -.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '$subtitle · ${people.length} shown',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: _ink.withValues(alpha: .48),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          FastTap(
+                            onTap: () => Navigator.of(context).pop(),
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: .55),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: .95),
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: _ink.withValues(alpha: .75),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+                        itemCount: people.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          return _PersonTile(person: people[index]);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PersonTile extends StatelessWidget {
+  const _PersonTile({required this.person});
+
+  final _Person person;
+
+  @override
+  Widget build(BuildContext context) {
+    final letter = person.name.isEmpty ? '?' : person.name[0].toUpperCase();
+
+    return FastTap(
+      onTap: () => HapticFeedback.selectionClick(),
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: person.colors,
+                ),
+              ),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: person.colors,
+                  ),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                child: Center(
+                  child: Text(
+                    letter,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    person.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                      letterSpacing: -.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    person.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _ink.withValues(alpha: .48),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: _ink.withValues(alpha: .28),
             ),
           ],
         ),
@@ -641,45 +1840,205 @@ class _StatCell extends StatelessWidget {
 
 // ------------------------------------------------------------ innovations
 
-class _InnovationsGrid extends StatelessWidget {
-  const _InnovationsGrid({required this.wave});
+class _InnovationsFeed extends StatelessWidget {
+  const _InnovationsFeed({required this.wave});
 
   final AnimationController wave;
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _innovations.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: .92,
-      ),
-      itemBuilder: (context, index) {
-        final item = _innovations[index];
-        return TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: 1),
-          duration: Duration(milliseconds: 420 + index * 70),
-          curve: Curves.easeOutBack,
-          builder: (context, t, child) => Transform.translate(
-            offset: Offset(0, 16 * (1 - t.clamp(0, 1))),
-            child: Transform.scale(
-              scale: (.9 + .1 * t).clamp(0, 1.05),
+    return Column(
+      children: [
+        for (var i = 0; i < _innovations.length; i++) ...[
+          if (i > 0) const SizedBox(height: 14),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: Duration(milliseconds: 380 + i * 60),
+            curve: Curves.easeOutCubic,
+            builder: (context, t, child) => Transform.translate(
+              offset: Offset(0, 14 * (1 - t.clamp(0, 1))),
               child: Opacity(opacity: t.clamp(0, 1), child: child),
             ),
+            child: _InnovationFeedCard(
+              item: _innovations[i],
+              wave: wave,
+              index: i,
+            ),
           ),
-          child: _InnovationCard(item: item, wave: wave, index: index),
-        );
-      },
+        ],
+      ],
     );
   }
 }
 
-class _InnovationCard extends StatelessWidget {
-  const _InnovationCard({
+/// Mirrors the news-feed liquid glass card: frosted surface, feed header,
+/// body copy, and a media block with a living wave fill.
+class _InnovationFeedCard extends StatefulWidget {
+  const _InnovationFeedCard({
+    required this.item,
+    required this.wave,
+    required this.index,
+  });
+
+  final _Innovation item;
+  final AnimationController wave;
+  final int index;
+
+  @override
+  State<_InnovationFeedCard> createState() => _InnovationFeedCardState();
+}
+
+class _InnovationFeedCardState extends State<_InnovationFeedCard> {
+  bool _liked = false;
+
+  _Innovation get item => widget.item;
+
+  @override
+  Widget build(BuildContext context) {
+    return FastGlass(
+      borderRadius: BorderRadius.circular(26),
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _InnovationAvatar(item: item),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _ink,
+                        letterSpacing: -.2,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'Innovation · ${item.date}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: _ink.withValues(alpha: .45),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FastTap(
+                onTap: () {},
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(
+                    Icons.more_horiz_rounded,
+                    size: 20,
+                    color: _ink.withValues(alpha: .4),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            item.subtitle,
+            style: TextStyle(
+              fontSize: 13.5,
+              height: 1.5,
+              color: _ink.withValues(alpha: .82),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _InnovationMedia(
+            item: item,
+            wave: widget.wave,
+            index: widget.index,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _InnovationAction(
+                icon: _liked
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                label: _liked ? '25' : '24',
+                active: _liked,
+                activeColor: const Color(0xFFE0245E),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() => _liked = !_liked);
+                },
+              ),
+              _InnovationAction(
+                icon: Icons.chat_bubble_outline_rounded,
+                label: '6',
+                onTap: () => HapticFeedback.selectionClick(),
+              ),
+              _InnovationAction(
+                icon: Icons.repeat_rounded,
+                label: '3',
+                onTap: () => HapticFeedback.selectionClick(),
+              ),
+              _InnovationAction(
+                icon: Icons.ios_share_rounded,
+                label: 'Share',
+                onTap: () => HapticFeedback.selectionClick(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InnovationAvatar extends StatelessWidget {
+  const _InnovationAvatar({required this.item});
+
+  final _Innovation item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: item.colors,
+        ),
+      ),
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: item.colors,
+          ),
+          border: Border.all(color: Colors.white, width: 1.5),
+        ),
+        child: Icon(item.icon, size: 20, color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _InnovationMedia extends StatelessWidget {
+  const _InnovationMedia({
     required this.item,
     required this.wave,
     required this.index,
@@ -691,94 +2050,160 @@ class _InnovationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LiquidPressable(
-      onTap: () => HapticFeedback.selectionClick(),
-      borderRadius: BorderRadius.circular(22),
-      rippleColor: Colors.white,
-      intensity: 1.05,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
+    return Container(
+      height: 188,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: .4)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          FastAssetImage(
+            asset: item.coverAsset,
+            fit: BoxFit.cover,
+            width: MediaQuery.sizeOf(context).width,
+            height: 188,
+          ),
+          DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withValues(alpha: .55),
-                  Colors.white.withValues(alpha: .28),
+                  Colors.black.withValues(alpha: .18),
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: .45),
                 ],
+                stops: const [0, .45, 1],
               ),
-              border: Border.all(color: Colors.white.withValues(alpha: .85)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          // Living liquid pool — same language as the rest of the app.
+          AnimatedBuilder(
+            animation: wave,
+            builder: (context, _) => Stack(
+              fit: StackFit.expand,
               children: [
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: item.colors,
-                          ),
-                        ),
-                      ),
-                      AnimatedBuilder(
-                        animation: wave,
-                        builder: (context, _) => CustomPaint(
-                          painter: WaveFillPainter(
-                            phase: wave.value * 2 * pi + index,
-                            fill: .3,
-                            color: Colors.white.withValues(alpha: .12),
-                            amplitude: 4,
-                            frequency: 1.3,
-                          ),
-                        ),
-                      ),
-                      Center(
-                        child: Icon(
-                          item.icon,
-                          size: 36,
-                          color: Colors.white.withValues(alpha: .92),
-                        ),
-                      ),
-                    ],
+                CustomPaint(
+                  painter: WaveFillPainter(
+                    phase: wave.value * 2 * pi + index,
+                    fill: .28,
+                    color: Colors.white.withValues(alpha: .22),
+                    amplitude: 5,
+                    frequency: 1.35,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _ink,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 10.5, color: _muted),
-                      ),
-                    ],
+                CustomPaint(
+                  painter: WaveFillPainter(
+                    phase: wave.value * 2 * pi + index + 1.2,
+                    fill: .16,
+                    color: Colors.white.withValues(alpha: .14),
+                    amplitude: 3.5,
+                    frequency: 1.8,
                   ),
                 ),
               ],
             ),
           ),
+          Positioned(
+            left: 12,
+            top: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                color: Colors.black.withValues(alpha: .4),
+                border: Border.all(color: Colors.white.withValues(alpha: .3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.image_outlined,
+                    size: 12,
+                    color: Colors.white.withValues(alpha: .9),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Photo',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: .9),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 14,
+            bottom: 12,
+            right: 14,
+            child: Text(
+              item.date,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: .92),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InnovationAction extends StatelessWidget {
+  const _InnovationAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+    this.activeColor = _ink,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+  final Color activeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? activeColor : _ink.withValues(alpha: .55);
+
+    return FastTap(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: active ? 1.18 : 1,
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutBack,
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 6),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+              child: Text(label),
+            ),
+          ],
         ),
       ),
     );

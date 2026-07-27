@@ -5,14 +5,15 @@ import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
 import 'widgets/liquid_button.dart';
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
-const _ink = Color(0xFF1B1E28);
-const _muted = Color(0xFF7A8194);
+const _ink = BrandColors.ink;
+const _muted = BrandColors.muted;
 const _maxChars = 280;
 
 enum AttachmentKind { image, video, pdf, file }
@@ -107,8 +108,7 @@ class _PostSectionState extends State<PostSection>
     value: .12,
   );
 
-  bool get _canPost =>
-      _text.text.trim().isNotEmpty || _attachments.isNotEmpty;
+  bool get _canPost => _text.text.trim().isNotEmpty || _attachments.isNotEmpty;
 
   @override
   void initState() {
@@ -144,14 +144,19 @@ class _PostSectionState extends State<PostSection>
     final start = (index * .15).clamp(0.0, .6);
     final animation = CurvedAnimation(
       parent: _entrance,
-      curve: Interval(start, (start + .45).clamp(0.0, 1.0),
-          curve: Curves.easeOutCubic),
+      curve: Interval(
+        start,
+        (start + .45).clamp(0.0, 1.0),
+        curve: Curves.easeOutCubic,
+      ),
     );
     return FadeTransition(
       opacity: animation,
       child: SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0, .06), end: Offset.zero)
-            .animate(animation),
+        position: Tween<Offset>(
+          begin: const Offset(0, .06),
+          end: Offset.zero,
+        ).animate(animation),
         child: child,
       ),
     );
@@ -183,18 +188,19 @@ class _PostSectionState extends State<PostSection>
           AttachmentKind.pdf => FileType.custom,
           AttachmentKind.file => FileType.any,
         },
-        allowedExtensions:
-            kind == AttachmentKind.pdf ? const ['pdf'] : null,
+        allowedExtensions: kind == AttachmentKind.pdf ? const ['pdf'] : null,
       );
       if (result == null || !mounted) return;
       setState(() {
         for (final file in result.files) {
-          _attachments.add(PostAttachment(
-            kind: _kindOf(file, kind),
-            name: file.name,
-            size: file.size,
-            path: file.path,
-          ));
+          _attachments.add(
+            PostAttachment(
+              kind: _kindOf(file, kind),
+              name: file.name,
+              size: file.size,
+              path: file.path,
+            ),
+          );
         }
       });
       _syncFill();
@@ -209,8 +215,15 @@ class _PostSectionState extends State<PostSection>
   /// "Any file" picks still get the right icon/preview based on extension.
   AttachmentKind _kindOf(PlatformFile file, AttachmentKind pickedAs) {
     final ext = (file.extension ?? '').toLowerCase();
-    if (const {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'}
-        .contains(ext)) {
+    if (const {
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'webp',
+      'bmp',
+      'heic',
+    }.contains(ext)) {
       return AttachmentKind.image;
     }
     if (const {'mp4', 'mov', 'mkv', 'avi', 'webm'}.contains(ext)) {
@@ -255,8 +268,8 @@ class _PostSectionState extends State<PostSection>
             borderRadius: BorderRadius.circular(30),
             gradient: LinearGradient(
               colors: [
-                const Color(0xFF2A2F3E).withValues(alpha: .95),
-                const Color(0xFF15181F).withValues(alpha: .92),
+                BrandColors.secondarySurface.withValues(alpha: .95),
+                BrandColors.secondarySurface.withValues(alpha: .92),
               ],
             ),
             border: Border.all(color: Colors.white.withValues(alpha: .25)),
@@ -271,8 +284,11 @@ class _PostSectionState extends State<PostSection>
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_rounded,
-                  color: Color(0xFF6EE7B7), size: 20),
+              Icon(
+                Icons.check_circle_rounded,
+                color: Color(0xFF6EE7B7),
+                size: 20,
+              ),
               SizedBox(width: 10),
               Text(
                 'Your post is live',
@@ -302,9 +318,7 @@ class _PostSectionState extends State<PostSection>
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(20, padding.top + 6, 20, 12),
-                children: [
-                  _stagger(index: 0, child: _buildComposer()),
-                ],
+                children: [_stagger(index: 0, child: _buildComposer())],
               ),
             ),
             _stagger(index: 1, child: _buildActions()),
@@ -390,7 +404,8 @@ class _PostSectionState extends State<PostSection>
                       onAudienceTap: () {
                         HapticFeedback.selectionClick();
                         setState(
-                            () => _audience = (_audience + 1) % _audiences.length);
+                          () => _audience = (_audience + 1) % _audiences.length,
+                        );
                       },
                     ),
                     const SizedBox(height: 16),
@@ -544,8 +559,12 @@ class _PostSectionState extends State<PostSection>
   // -------------------------------------------------------------- actions
 
   Widget _buildActions() {
-    // Stays clear of the nav bar when it is docked at the bottom.
-    final bottom = max(18.0, widget.contentPadding.bottom - 24);
+    // Clear the docked nav when the keyboard is closed; when typing, the
+    // nav stays under the keyboard so only a light inset is needed.
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final bottom = keyboard > 0
+        ? 12.0
+        : max(18.0, widget.contentPadding.bottom - 24);
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 4, 20, bottom),
       child: Row(
@@ -554,18 +573,17 @@ class _PostSectionState extends State<PostSection>
             child: LiquidButton(
               label: 'Attachment',
               dark: false,
-              leading: const Icon(Icons.attach_file_rounded,
-                  size: 19, color: _ink),
+              leading: const Icon(
+                Icons.attach_file_rounded,
+                size: 19,
+                color: _ink,
+              ),
               onTap: _openAttachmentSheet,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: _LiquidPostButton(
-              wave: _wave,
-              fill: _fill,
-              onTap: _submit,
-            ),
+            child: _LiquidPostButton(wave: _wave, fill: _fill, onTap: _submit),
           ),
         ],
       ),
@@ -602,8 +620,11 @@ class _LiquidPostButton extends StatelessWidget {
           builder: (context, _) {
             final level = fill.value;
             final phase = wave.value * 2 * pi;
-            final labelColor =
-                Color.lerp(_ink, Colors.white, ((level - .35) / .45).clamp(0, 1))!;
+            final labelColor = Color.lerp(
+              _ink,
+              Colors.white,
+              ((level - .35) / .45).clamp(0, 1),
+            )!;
             return Container(
               height: 57,
               decoration: BoxDecoration(
@@ -642,7 +663,9 @@ class _LiquidPostButton extends StatelessWidget {
                       painter: WaveFillPainter(
                         phase: phase,
                         fill: level,
-                        color: const Color(0xFF15181F).withValues(alpha: .92),
+                        color: BrandColors.secondarySurface.withValues(
+                          alpha: .92,
+                        ),
                         amplitude: 4,
                         frequency: 1.5,
                       ),
@@ -694,8 +717,9 @@ class _PostingWave extends StatelessWidget {
           animation: wave,
           builder: (context, _) {
             final phase = wave.value * 2 * pi;
-            final reveal =
-                Curves.elasticOut.transform(((t - .62) / .44).clamp(0, 1));
+            final reveal = Curves.elasticOut.transform(
+              ((t - .62) / .44).clamp(0, 1),
+            );
             return Stack(
               fit: StackFit.expand,
               children: [
@@ -712,7 +736,7 @@ class _PostingWave extends StatelessWidget {
                   painter: WaveFillPainter(
                     phase: phase,
                     fill: t,
-                    color: const Color(0xFF15181F).withValues(alpha: .97),
+                    color: BrandColors.secondarySurface.withValues(alpha: .97),
                     amplitude: 20,
                     frequency: 1.35,
                   ),
@@ -737,8 +761,11 @@ class _PostingWave extends StatelessWidget {
                                   width: 1.5,
                                 ),
                               ),
-                              child: const Icon(Icons.check_rounded,
-                                  size: 40, color: Colors.white),
+                              child: const Icon(
+                                Icons.check_rounded,
+                                size: 40,
+                                color: Colors.white,
+                              ),
                             ),
                             const SizedBox(height: 14),
                             const Text(
@@ -838,7 +865,7 @@ class _AuthorRow extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF3A4154), Color(0xFF15181F)],
+              colors: [Color(0xFF3A4154), BrandColors.secondarySurface],
             ),
             border: Border.all(color: Colors.white.withValues(alpha: .9)),
             boxShadow: [
@@ -886,12 +913,15 @@ class _AuthorRow extends StatelessWidget {
                   curve: Curves.easeOutCubic,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3.5),
+                      horizontal: 10,
+                      vertical: 3.5,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
                       color: Colors.white.withValues(alpha: .55),
-                      border:
-                          Border.all(color: Colors.white.withValues(alpha: .9)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: .9),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -944,10 +974,7 @@ class _AuthorRow extends StatelessWidget {
 // ---------------------------------------------------- attachment previews
 
 class _AttachmentPreview extends StatelessWidget {
-  const _AttachmentPreview({
-    required this.attachments,
-    required this.onRemove,
-  });
+  const _AttachmentPreview({required this.attachments, required this.onRemove});
 
   final List<PostAttachment> attachments;
   final void Function(PostAttachment) onRemove;
@@ -1018,11 +1045,7 @@ class _ImageThumb extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
-          top: -7,
-          right: -7,
-          child: _RemoveBadge(onTap: onRemove),
-        ),
+        Positioned(top: -7, right: -7, child: _RemoveBadge(onTap: onRemove)),
       ],
     );
   }
@@ -1035,15 +1058,17 @@ class _FileTile extends StatelessWidget {
   final VoidCallback onRemove;
 
   (IconData, Color) get _style => switch (attachment.kind) {
-        AttachmentKind.video =>
-          (Icons.play_circle_fill_rounded, const Color(0xFF7C3AED)),
-        AttachmentKind.pdf =>
-          (Icons.picture_as_pdf_rounded, const Color(0xFFDC2626)),
-        AttachmentKind.image =>
-          (Icons.image_rounded, const Color(0xFF2563EB)),
-        AttachmentKind.file =>
-          (Icons.insert_drive_file_rounded, _ink),
-      };
+    AttachmentKind.video => (
+      Icons.play_circle_fill_rounded,
+      const Color(0xFF7C3AED),
+    ),
+    AttachmentKind.pdf => (
+      Icons.picture_as_pdf_rounded,
+      const Color(0xFFDC2626),
+    ),
+    AttachmentKind.image => (Icons.image_rounded, const Color(0xFF2563EB)),
+    AttachmentKind.file => (Icons.insert_drive_file_rounded, _ink),
+  };
 
   @override
   Widget build(BuildContext context) {

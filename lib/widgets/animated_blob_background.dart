@@ -2,12 +2,17 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../theme/brand_colors.dart';
+
 /// Clean, colorless backdrop: soft off-white base with a few barely-there
 /// gray orbs drifting very slowly. The motion is subtle on purpose — just
 /// enough for the glass surfaces above to have something to blur so they
 /// still read as glass instead of flat panels.
 class AnimatedBlobBackground extends StatefulWidget {
-  const AnimatedBlobBackground({super.key});
+  const AnimatedBlobBackground({super.key, this.animate = true});
+
+  /// When false, the painter freezes on the current frame (cheap while scrolling).
+  final bool animate;
 
   @override
   State<AnimatedBlobBackground> createState() => _AnimatedBlobBackgroundState();
@@ -17,8 +22,19 @@ class _AnimatedBlobBackgroundState extends State<AnimatedBlobBackground>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 26),
+    duration: const Duration(seconds: 36),
   )..repeat();
+
+  @override
+  void didUpdateWidget(covariant AnimatedBlobBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.animate == oldWidget.animate) return;
+    if (widget.animate) {
+      if (!_controller.isAnimating) _controller.repeat();
+    } else {
+      _controller.stop();
+    }
+  }
 
   @override
   void dispose() {
@@ -28,11 +44,13 @@ class _AnimatedBlobBackgroundState extends State<AnimatedBlobBackground>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) => CustomPaint(
-        painter: _BlobPainter(_controller.value),
-        child: const SizedBox.expand(),
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => CustomPaint(
+          painter: _BlobPainter(_controller.value),
+          child: const SizedBox.expand(),
+        ),
       ),
     );
   }
@@ -54,37 +72,32 @@ class _BlobPainter extends CustomPainter {
 
   final double t;
 
-  // Neutral grays only — depth without color.
+  // Soft brand-tinted orbs — depth with a hint of gold / navy mist.
   static const _blobs = [
-    _Blob(Color(0xFFDDE0E6), .22, .25, 230, 0.0, 60),
-    _Blob(Color(0xFFE8EAEF), .80, .20, 190, 2.1, 50),
-    _Blob(Color(0xFFD6D9E0), .68, .80, 240, 4.0, 70),
-    _Blob(Color(0xFFE4E6EC), .15, .82, 180, 1.2, 55),
+    _Blob(Color(0xFFE8E4D8), .22, .25, 230, 0.0, 60),
+    _Blob(Color(0xFFD9DEE6), .80, .20, 190, 2.1, 50),
+    _Blob(Color(0xFFE6E0D0), .68, .80, 240, 4.0, 70),
+    _Blob(Color(0xFFD4DAE3), .15, .82, 180, 1.2, 55),
   ];
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Base: clean off-white with a faint bright lift in the center.
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xFFF4F5F8),
-    );
+    // Base: clean canvas with a faint bright lift in the center.
+    canvas.drawRect(Offset.zero & size, Paint()..color = BrandColors.canvas);
     canvas.drawRect(
       Offset.zero & size,
       Paint()
         ..shader = RadialGradient(
           center: Alignment.center,
           radius: 1.0,
-          colors: [
-            Colors.white.withValues(alpha: .8),
-            Colors.transparent,
-          ],
+          colors: [Colors.white.withValues(alpha: .8), Colors.transparent],
         ).createShader(Offset.zero & size),
     );
 
     final angle = t * 2 * math.pi;
     for (final blob in _blobs) {
-      final dx = size.width * blob.x + math.cos(angle + blob.phase) * blob.drift;
+      final dx =
+          size.width * blob.x + math.cos(angle + blob.phase) * blob.drift;
       final dy =
           size.height * blob.y + math.sin(angle * .8 + blob.phase) * blob.drift;
       canvas.drawCircle(

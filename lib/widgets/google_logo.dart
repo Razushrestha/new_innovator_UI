@@ -10,10 +10,7 @@ class GoogleLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size.square(size),
-      painter: _GoogleLogoPainter(),
-    );
+    return CustomPaint(size: Size.square(size), painter: _GoogleLogoPainter());
   }
 }
 

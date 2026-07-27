@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-const _ink = Color(0xFF1B1E28);
+import '../theme/brand_colors.dart';
 
-/// Small glass sphere logo with a specular highlight, echoing the theme.
+/// Small glass sphere with the Innovator mark — used on auth screens.
 class GlassOrbLogo extends StatelessWidget {
   const GlassOrbLogo({super.key});
 
@@ -13,27 +13,21 @@ class GlassOrbLogo extends StatelessWidget {
       height: 66,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: .95),
-            Colors.white.withValues(alpha: .45),
-          ],
+        color: BrandColors.secondarySurface,
+        border: Border.all(
+          color: BrandColors.accent.withValues(alpha: .8),
+          width: 1.6,
         ),
-        border: Border.all(color: Colors.white),
         boxShadow: [
           BoxShadow(
-            color: _ink.withValues(alpha: .14),
+            color: BrandColors.accent.withValues(alpha: .22),
             blurRadius: 26,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: const Icon(
-        Icons.water_drop_rounded,
-        size: 30,
-        color: _ink,
+      child: ClipOval(
+        child: Image.asset('Assets/center_logo.png', fit: BoxFit.cover),
       ),
     );
   }

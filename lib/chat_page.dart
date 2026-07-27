@@ -3,13 +3,14 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
-const _ink = Color(0xFF1B1E28);
-const _muted = Color(0xFF7A8194);
+const _ink = BrandColors.ink;
+const _muted = BrandColors.muted;
 const _online = Color(0xFF17A275);
 
 class _Conversation {
@@ -272,8 +273,8 @@ class _ChatSectionState extends State<ChatSection>
               borderRadius: BorderRadius.circular(28),
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF2A2F3E).withValues(alpha: .95),
-                  const Color(0xFF15181F).withValues(alpha: .92),
+                  BrandColors.secondarySurface.withValues(alpha: .95),
+                  BrandColors.secondarySurface.withValues(alpha: .92),
                 ],
               ),
               border: Border.all(color: Colors.white.withValues(alpha: .28)),
@@ -962,7 +963,7 @@ class _WaterDropPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(0xFF15181F).withValues(alpha: .93)
+        ..color = BrandColors.secondarySurface.withValues(alpha: .93)
         ..style = PaintingStyle.fill,
     );
     canvas.drawPath(
@@ -1514,7 +1515,10 @@ class _ConversationTile extends StatelessWidget {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Color(0xFF2A2F3E), Color(0xFF15181F)],
+                          colors: [
+                            BrandColors.secondarySurface,
+                            BrandColors.secondarySurface,
+                          ],
                         ),
                       ),
                       child: Center(

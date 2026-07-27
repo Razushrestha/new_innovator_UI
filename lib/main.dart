@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'login_page.dart';
+import 'theme/brand_colors.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,9 +26,14 @@ class InnovatorApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF4F5F8),
+        scaffoldBackgroundColor: BrandColors.canvas,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1B1E28),
+          seedColor: BrandColors.accent,
+          primary: BrandColors.secondarySurface,
+          secondary: BrandColors.accent,
+          surface: BrandColors.canvas,
+          onPrimary: BrandColors.text,
+          onSecondary: BrandColors.secondarySurface,
           brightness: Brightness.light,
         ),
         splashFactory: NoSplash.splashFactory,

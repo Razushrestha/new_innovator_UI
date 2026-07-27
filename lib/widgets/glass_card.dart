@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../theme/brand_colors.dart';
+
 /// Frosted glass panel: backdrop blur, inner sheen gradient, and a
 /// specular rim that is brighter on the top-left (where the "light" hits).
 class GlassCard extends StatelessWidget {
@@ -27,7 +29,7 @@ class GlassCard extends StatelessWidget {
         borderRadius: radius,
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF272C3A).withValues(alpha: .12),
+            color: BrandColors.secondarySurface.withValues(alpha: .14),
             blurRadius: 45,
             offset: const Offset(0, 22),
           ),

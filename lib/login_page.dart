@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'theme/brand_colors.dart';
 
 import 'dashboard_page.dart';
 import 'signup_page.dart';
@@ -8,7 +9,7 @@ import 'widgets/glass_orb_logo.dart';
 import 'widgets/glass_text_field.dart';
 import 'widgets/liquid_button.dart';
 
-const _ink = Color(0xFF1B1E28);
+const _ink = BrandColors.ink;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -32,9 +33,7 @@ class _LoginPageState extends State<LoginPage>
   late final Animation<Offset> _slide = Tween<Offset>(
     begin: const Offset(0, .06),
     end: Offset.zero,
-  ).animate(
-    CurvedAnimation(parent: _entrance, curve: Curves.easeOutCubic),
-  );
+  ).animate(CurvedAnimation(parent: _entrance, curve: Curves.easeOutCubic));
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -122,10 +121,11 @@ class _LoginPageState extends State<LoginPage>
                             child: TextButton(
                               onPressed: () {},
                               style: TextButton.styleFrom(
-                                foregroundColor:
-                                    _ink.withValues(alpha: .55),
+                                foregroundColor: _ink.withValues(alpha: .55),
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 minimumSize: Size.zero,
                               ),
                               child: const Text(
@@ -135,10 +135,7 @@ class _LoginPageState extends State<LoginPage>
                             ),
                           ),
                           const SizedBox(height: 20),
-                          LiquidButton(
-                            label: 'Sign In',
-                            onTap: _signIn,
-                          ),
+                          LiquidButton(label: 'Sign In', onTap: _signIn),
                           const SizedBox(height: 26),
                           Wrap(
                             alignment: WrapAlignment.center,
@@ -156,19 +153,22 @@ class _LoginPageState extends State<LoginPage>
                                 onTap: () {
                                   Navigator.of(context).push(
                                     PageRouteBuilder(
-                                      transitionDuration:
-                                          const Duration(milliseconds: 450),
+                                      transitionDuration: const Duration(
+                                        milliseconds: 450,
+                                      ),
                                       pageBuilder: (_, animation, __) =>
                                           FadeTransition(
-                                        opacity: animation,
-                                        child: const SignupPage(),
-                                      ),
+                                            opacity: animation,
+                                            child: const SignupPage(),
+                                          ),
                                     ),
                                   );
                                 },
                                 child: const Padding(
                                   padding: EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 8),
+                                    horizontal: 6,
+                                    vertical: 8,
+                                  ),
                                   child: Text(
                                     'Sign up',
                                     style: TextStyle(

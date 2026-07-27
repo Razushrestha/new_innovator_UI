@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
 import 'shop_models.dart';
@@ -9,8 +10,8 @@ import 'widgets/liquid_button.dart';
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
-const _ink = Color(0xFF1B1E28);
-const _muted = Color(0xFF7A8194);
+const _ink = BrandColors.ink;
+const _muted = BrandColors.muted;
 const _khalti = Color(0xFF5C2D91);
 
 /// Cart section rendered inside the dashboard shell (nav bar stays).
@@ -60,14 +61,19 @@ class _CartSectionState extends State<CartSection>
     final start = (index * .12).clamp(0.0, .6);
     final animation = CurvedAnimation(
       parent: _entrance,
-      curve: Interval(start, (start + .45).clamp(0.0, 1.0),
-          curve: Curves.easeOutCubic),
+      curve: Interval(
+        start,
+        (start + .45).clamp(0.0, 1.0),
+        curve: Curves.easeOutCubic,
+      ),
     );
     return FadeTransition(
       opacity: animation,
       child: SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0, .06), end: Offset.zero)
-            .animate(animation),
+        position: Tween<Offset>(
+          begin: const Offset(0, .06),
+          end: Offset.zero,
+        ).animate(animation),
         child: child,
       ),
     );
@@ -93,8 +99,7 @@ class _CartSectionState extends State<CartSection>
           duration: const Duration(seconds: 2),
           content: Center(
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(30),
                 gradient: const LinearGradient(
@@ -112,8 +117,11 @@ class _CartSectionState extends State<CartSection>
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_circle_rounded,
-                      color: Color(0xFF6EE7B7), size: 20),
+                  Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF6EE7B7),
+                    size: 20,
+                  ),
                   SizedBox(width: 10),
                   Text(
                     'Payment successful — order confirmed',
@@ -141,12 +149,13 @@ class _CartSectionState extends State<CartSection>
         final cart = Cart.instance;
         return ListView(
           padding: EdgeInsets.fromLTRB(
-              20, padding.top + 6, 20, padding.bottom + 6),
+            20,
+            padding.top + 6,
+            20,
+            padding.bottom + 6,
+          ),
           children: [
-            _stagger(
-              index: 0,
-              child: _FloatingTitle('Your cart', wave: _wave),
-            ),
+            _stagger(index: 0, child: _FloatingTitle('Your cart', wave: _wave)),
             const SizedBox(height: 16),
             if (cart.isEmpty)
               _stagger(
@@ -154,7 +163,10 @@ class _CartSectionState extends State<CartSection>
                 child: _EmptyCart(wave: _wave, onShop: widget.onShop),
               )
             else ...[
-              _stagger(index: 1, child: _CartTable(cart: cart, wave: _wave)),
+              _stagger(
+                index: 1,
+                child: _CartTable(cart: cart, wave: _wave),
+              ),
               const SizedBox(height: 16),
               _stagger(index: 2, child: _SummaryCard(cart: cart)),
               const SizedBox(height: 18),
@@ -180,12 +192,17 @@ class _CartSectionState extends State<CartSection>
                     intensity: .5,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.arrow_back_rounded,
-                              size: 15, color: _ink.withValues(alpha: .65)),
+                          Icon(
+                            Icons.arrow_back_rounded,
+                            size: 15,
+                            color: _ink.withValues(alpha: .65),
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Continue shopping',
@@ -281,8 +298,9 @@ class _EmptyCart extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: Colors.white.withValues(alpha: .6),
                     border: Border.all(
-                        color: Colors.white.withValues(alpha: .95),
-                        width: 1.4),
+                      color: Colors.white.withValues(alpha: .95),
+                      width: 1.4,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: _ink.withValues(alpha: .12),
@@ -305,8 +323,11 @@ class _EmptyCart extends StatelessWidget {
                           ),
                         ),
                         const Center(
-                          child: Icon(Icons.shopping_bag_outlined,
-                              size: 30, color: _ink),
+                          child: Icon(
+                            Icons.shopping_bag_outlined,
+                            size: 30,
+                            color: _ink,
+                          ),
                         ),
                       ],
                     ),
@@ -333,8 +354,11 @@ class _EmptyCart extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 230),
                 child: LiquidButton(
                   label: 'Browse products',
-                  leading: const Icon(Icons.storefront_outlined,
-                      size: 18, color: Colors.white),
+                  leading: const Icon(
+                    Icons.storefront_outlined,
+                    size: 18,
+                    color: Colors.white,
+                  ),
                   onTap: onShop,
                 ),
               ),
@@ -412,18 +436,27 @@ class _CartTable extends StatelessWidget {
                     ),
                     Padding(
                       padding: EdgeInsets.only(bottom: 8),
-                      child: Text('Qty',
-                          textAlign: TextAlign.center, style: _headerStyle),
+                      child: Text(
+                        'Qty',
+                        textAlign: TextAlign.center,
+                        style: _headerStyle,
+                      ),
                     ),
                     Padding(
                       padding: EdgeInsets.only(bottom: 8),
-                      child: Text('Price',
-                          textAlign: TextAlign.right, style: _headerStyle),
+                      child: Text(
+                        'Price',
+                        textAlign: TextAlign.right,
+                        style: _headerStyle,
+                      ),
                     ),
                     Padding(
                       padding: EdgeInsets.only(bottom: 8),
-                      child: Text('Total',
-                          textAlign: TextAlign.right, style: _headerStyle),
+                      child: Text(
+                        'Total',
+                        textAlign: TextAlign.right,
+                        style: _headerStyle,
+                      ),
                     ),
                   ],
                 ),
@@ -456,23 +489,20 @@ class _CartTable extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      product.tint.withValues(alpha: .22),
-                      product.tint.withValues(alpha: .08),
-                    ],
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  product.imageAsset,
+                  width: 34,
+                  height: 34,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 34,
+                    height: 34,
+                    color: product.tint.withValues(alpha: .15),
+                    child: Icon(product.icon, size: 17, color: product.tint),
                   ),
-                  border:
-                      Border.all(color: product.tint.withValues(alpha: .2)),
                 ),
-                child: Icon(product.icon, size: 17, color: product.tint),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -571,8 +601,8 @@ class _QtyButton extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF2A2F3E).withValues(alpha: .95),
-              const Color(0xFF15181F).withValues(alpha: .9),
+              BrandColors.secondarySurface.withValues(alpha: .95),
+              BrandColors.secondarySurface.withValues(alpha: .9),
             ],
           ),
           border: Border.all(color: Colors.white.withValues(alpha: .35)),
@@ -616,12 +646,14 @@ class _SummaryCard extends StatelessWidget {
               const SizedBox(height: 10),
               _line('VAT (13%)', formatRs(cart.vat)),
               const SizedBox(height: 10),
-              _line('Delivery (Nepal)', formatRs(cart.delivery),
-                  note: 'Flat rate · everywhere in Nepal'),
+              _line(
+                'Delivery (Nepal)',
+                formatRs(cart.delivery),
+                note: 'Flat rate · everywhere in Nepal',
+              ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 13),
-                child:
-                    Container(height: 1, color: _ink.withValues(alpha: .08)),
+                child: Container(height: 1, color: _ink.withValues(alpha: .08)),
               ),
               Row(
                 children: [
@@ -668,10 +700,7 @@ class _SummaryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 13, color: _muted),
-              ),
+              Text(label, style: const TextStyle(fontSize: 13, color: _muted)),
               if (note != null) ...[
                 const SizedBox(height: 2),
                 Text(
@@ -766,8 +795,11 @@ class _KhaltiCheckoutButton extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.account_balance_wallet_rounded,
-                            size: 19, color: Colors.white),
+                        const Icon(
+                          Icons.account_balance_wallet_rounded,
+                          size: 19,
+                          color: Colors.white,
+                        ),
                         const SizedBox(width: 10),
                         const Text(
                           'Checkout with Khalti',
@@ -781,12 +813,15 @@ class _KhaltiCheckoutButton extends StatelessWidget {
                         const SizedBox(width: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
                             color: Colors.white.withValues(alpha: .18),
                             border: Border.all(
-                                color: Colors.white.withValues(alpha: .35)),
+                              color: Colors.white.withValues(alpha: .35),
+                            ),
                           ),
                           child: Text(
                             formatRs(amount),
@@ -862,7 +897,9 @@ class _KhaltiSheetState extends State<_KhaltiSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         child: BackdropFilter(
@@ -943,20 +980,22 @@ class _KhaltiSheetState extends State<_KhaltiSheet> {
                               SizedBox(height: 2),
                               Text(
                                 'Digital wallet · Nepal',
-                                style:
-                                    TextStyle(fontSize: 11.5, color: _muted),
+                                style: TextStyle(fontSize: 11.5, color: _muted),
                               ),
                             ],
                           ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 11, vertical: 6),
+                            horizontal: 11,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(14),
                             color: _khalti.withValues(alpha: .1),
                             border: Border.all(
-                                color: _khalti.withValues(alpha: .25)),
+                              color: _khalti.withValues(alpha: .25),
+                            ),
                           ),
                           child: Text(
                             formatRs(widget.amount),
@@ -1142,8 +1181,11 @@ class _KhaltiSheetState extends State<_KhaltiSheet> {
                 ),
               ],
             ),
-            child:
-                const Icon(Icons.check_rounded, size: 36, color: Colors.white),
+            child: const Icon(
+              Icons.check_rounded,
+              size: 36,
+              color: Colors.white,
+            ),
           ),
         ),
         const SizedBox(height: 14),

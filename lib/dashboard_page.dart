@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
 import 'cart_page.dart';
@@ -14,7 +15,7 @@ import 'widgets/glass_drawer.dart';
 import 'widgets/liquid_nav_bar.dart';
 import 'widgets/news_feed_section.dart';
 
-const _ink = Color(0xFF1B1E28);
+const _ink = BrandColors.ink;
 
 /// Post-login dashboard: the news feed, a glass drawer, and a dockable
 /// liquid nav bar. Drag the bar (it melts into the logo orb) toward any
@@ -29,8 +30,7 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage>
-    with SingleTickerProviderStateMixin {
+class _DashboardPageState extends State<DashboardPage> {
   // Bar layout: Chat, E-learning, Search · [logo] · Post, Shop, Menu.
   static const _navLeading = [
     LiquidNavItem(icon: Icons.chat_bubble_outline_rounded, label: 'Chat'),
@@ -55,39 +55,10 @@ class _DashboardPageState extends State<DashboardPage>
   Offset _dragPos = Offset.zero;
   NavDock? _previewDock;
 
-  late final AnimationController _entrance = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..forward();
-
   @override
   void dispose() {
-    _entrance.dispose();
     _scroll.dispose();
     super.dispose();
-  }
-
-  /// Staggered fade+rise for each section of the dashboard.
-  Widget _stagger({required int index, required Widget child}) {
-    final start = (index * .12).clamp(0.0, .6);
-    final animation = CurvedAnimation(
-      parent: _entrance,
-      curve: Interval(
-        start,
-        (start + .4).clamp(0.0, 1.0),
-        curve: Curves.easeOutCubic,
-      ),
-    );
-    return FadeTransition(
-      opacity: animation,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, .08),
-          end: Offset.zero,
-        ).animate(animation),
-        child: child,
-      ),
-    );
   }
 
   void _logout() {
@@ -198,7 +169,7 @@ class _DashboardPageState extends State<DashboardPage>
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      drawerScrimColor: _ink.withValues(alpha: .25),
+      drawerScrimColor: _ink.withValues(alpha: .06),
       drawer: GlassDrawer(
         name: _displayName,
         title: 'Premium Member',
@@ -225,7 +196,10 @@ class _DashboardPageState extends State<DashboardPage>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          const AnimatedBlobBackground(key: ValueKey('background')),
+          const AnimatedBlobBackground(
+            key: ValueKey('background'),
+            animate: false,
+          ),
           SafeArea(
             key: const ValueKey('content'),
             child: AnimatedPadding(
@@ -291,16 +265,10 @@ class _DashboardPageState extends State<DashboardPage>
                             contentPadding: _feedPadding,
                             onPosted: () => setState(() => _selected = -1),
                           )
-                        : ListView(
+                        : NewsFeedSection(
                             key: const ValueKey('feed'),
                             controller: _scroll,
                             padding: _feedPadding,
-                            children: [
-                              _stagger(
-                                index: 0,
-                                child: const NewsFeedSection(),
-                              ),
-                            ],
                           ),
                   ),
                 ),
@@ -326,6 +294,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Widget _buildNav(BuildContext context) {
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final bar = GestureDetector(
       onPanStart: _onDragStart,
       onPanUpdate: _onDragUpdate,
@@ -363,12 +332,15 @@ class _DashboardPageState extends State<DashboardPage>
     // alive when the bar re-docks or the overlay layers appear.
     const navKey = ValueKey('nav-bar');
     return switch (_dock) {
+      // Scaffold shrinks for the keyboard; offset the bar back down so it
+      // stays pinned to the screen edge instead of riding up with Post /
+      // Attachment. It sits under the keyboard while typing.
       NavDock.bottom => Positioned(
         key: navKey,
         left: 14,
         right: 14,
-        bottom: 8,
-        child: SafeArea(child: bar),
+        bottom: 8 - keyboard,
+        child: SafeArea(bottom: keyboard == 0, child: bar),
       ),
       NavDock.top => Positioned(
         key: navKey,

@@ -2,14 +2,15 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
 import 'shop_models.dart';
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
-const _ink = Color(0xFF1B1E28);
-const _muted = Color(0xFF7A8194);
+const _ink = BrandColors.ink;
+const _muted = BrandColors.muted;
 
 /// One row in the global search index: people from the feed and every
 /// product from the shop catalog.
@@ -614,7 +615,10 @@ class _ResultTile extends StatelessWidget {
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF2A2F3E), Color(0xFF8A93A8)],
+                        colors: [
+                          BrandColors.secondarySurface,
+                          Color(0xFF8A93A8),
+                        ],
                       ),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: .8),

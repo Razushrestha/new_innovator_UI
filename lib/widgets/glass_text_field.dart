@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../theme/brand_colors.dart';
 
-const _ink = Color(0xFF1B1E28);
+const _ink = BrandColors.ink;
 
 /// Translucent input that brightens and gains a soft glow when focused,
 /// as if the glass under your finger lights up.
@@ -55,14 +56,14 @@ class _GlassTextFieldState extends State<GlassTextField> {
         borderRadius: BorderRadius.circular(19),
         border: Border.all(
           color: _focused
-              ? _ink.withValues(alpha: .35)
-              : Colors.white.withValues(alpha: .9),
+              ? BrandColors.accent.withValues(alpha: .65)
+              : BrandColors.text.withValues(alpha: .9),
           width: 1.2,
         ),
         boxShadow: _focused
             ? [
                 BoxShadow(
-                  color: _ink.withValues(alpha: .08),
+                  color: BrandColors.accent.withValues(alpha: .18),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -74,7 +75,7 @@ class _GlassTextFieldState extends State<GlassTextField> {
         focusNode: _focusNode,
         obscureText: _obscured,
         keyboardType: widget.keyboardType,
-        cursorColor: _ink,
+        cursorColor: BrandColors.accent,
         style: const TextStyle(fontSize: 15, letterSpacing: .2, color: _ink),
         decoration: InputDecoration(
           hintText: widget.hint,
@@ -97,8 +98,10 @@ class _GlassTextFieldState extends State<GlassTextField> {
                 )
               : null,
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 16.5),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 16.5,
+          ),
         ),
       ),
     );

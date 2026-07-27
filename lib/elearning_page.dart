@@ -1,15 +1,18 @@
-import 'dart:math';
-import 'dart:ui';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
 
 import 'shop_models.dart';
+import 'theme/brand_colors.dart';
+import 'widgets/animated_blob_background.dart';
+import 'widgets/fast_glass.dart';
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
-const _ink = Color(0xFF1B1E28);
-const _muted = Color(0xFF7A8194);
+const _ink = BrandColors.ink;
+const _muted = BrandColors.muted;
 
 class _FeaturedCourse {
   const _FeaturedCourse({
@@ -19,6 +22,7 @@ class _FeaturedCourse {
     required this.badge,
     required this.icon,
     required this.colors,
+    required this.imageAsset,
   });
 
   final String name;
@@ -27,6 +31,7 @@ class _FeaturedCourse {
   final String badge;
   final IconData icon;
   final List<Color> colors;
+  final String imageAsset;
 }
 
 const _featuredCourses = [
@@ -37,6 +42,7 @@ const _featuredCourses = [
     badge: 'Featured',
     icon: Icons.flutter_dash_rounded,
     colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+    imageAsset: 'Assets/courses/featured_01.jpg',
   ),
   _FeaturedCourse(
     name: 'UX Design Bootcamp',
@@ -45,6 +51,7 @@ const _featuredCourses = [
     badge: 'Bestseller',
     icon: Icons.design_services_rounded,
     colors: [Color(0xFF4C1D95), Color(0xFF7C3AED)],
+    imageAsset: 'Assets/courses/featured_02.jpg',
   ),
   _FeaturedCourse(
     name: 'AI for Innovators',
@@ -53,6 +60,7 @@ const _featuredCourses = [
     badge: 'New',
     icon: Icons.auto_awesome_rounded,
     colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+    imageAsset: 'Assets/courses/featured_03.jpg',
   ),
 ];
 
@@ -63,9 +71,13 @@ class _Course {
     required this.price,
     required this.rating,
     required this.lessons,
+    required this.chapters,
     required this.students,
+    required this.description,
+    required this.videoUrl,
     required this.icon,
     required this.colors,
+    required this.imageAsset,
   });
 
   final String name;
@@ -73,10 +85,32 @@ class _Course {
   final double price;
   final double rating;
   final int lessons;
+  final int chapters;
   final String students;
+  final String description;
+  final String videoUrl;
   final IconData icon;
   final List<Color> colors;
+  final String imageAsset;
 }
+
+/// Short public sample clips used as course cover videos.
+const _vBee =
+    'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4';
+const _vButterfly =
+    'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4';
+const _vBlazes =
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+const _vEscapes =
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
+const _vJoyrides =
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4';
+const _vMeltdowns =
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4';
+const _vSubaru =
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4';
+const _vElephants =
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4';
 
 const _courses = [
   _Course(
@@ -85,9 +119,15 @@ const _courses = [
     price: 4900,
     rating: 4.9,
     lessons: 24,
+    chapters: 8,
     students: '3.2k',
+    description:
+        'Master soft glass surfaces, spring motion, and liquid layouts. Build '
+        'portfolio-ready interfaces with depth, blur, and wave-filled controls.',
+    videoUrl: _vBee,
     icon: Icons.water_drop_rounded,
     colors: [Color(0xFF4C1D95), Color(0xFF7C3AED)],
+    imageAsset: 'Assets/courses/course_01.jpg',
   ),
   _Course(
     name: 'Flutter From Zero',
@@ -95,9 +135,15 @@ const _courses = [
     price: 5900,
     rating: 4.8,
     lessons: 42,
+    chapters: 12,
     students: '5.6k',
+    description:
+        'Go from blank project to a polished app. Widgets, state, navigation, '
+        'networking, and shipping patterns used in real products.',
+    videoUrl: _vButterfly,
     icon: Icons.flutter_dash_rounded,
     colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+    imageAsset: 'Assets/courses/course_02.jpg',
   ),
   _Course(
     name: 'Design Systems Pro',
@@ -105,9 +151,15 @@ const _courses = [
     price: 3900,
     rating: 4.9,
     lessons: 18,
+    chapters: 6,
     students: '2.4k',
+    description:
+        'Create tokens, components, and documentation that scale. Learn how '
+        'teams keep product UI consistent without slowing delivery.',
+    videoUrl: _vBlazes,
     icon: Icons.grid_view_rounded,
     colors: [Color(0xFF9D174D), Color(0xFFDB2777)],
+    imageAsset: 'Assets/courses/course_03.jpg',
   ),
   _Course(
     name: 'API Mastery',
@@ -115,9 +167,15 @@ const _courses = [
     price: 4400,
     rating: 4.8,
     lessons: 30,
+    chapters: 9,
     students: '1.9k',
+    description:
+        'Design, consume, and secure REST APIs. Auth flows, pagination, '
+        'caching, and error handling for production mobile clients.',
+    videoUrl: _vEscapes,
     icon: Icons.cable_rounded,
     colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
+    imageAsset: 'Assets/courses/course_04.jpg',
   ),
   _Course(
     name: 'Startup Finance',
@@ -125,9 +183,15 @@ const _courses = [
     price: 2900,
     rating: 4.6,
     lessons: 16,
+    chapters: 5,
     students: '1.4k',
+    description:
+        'Runway, pricing, unit economics, and fundraising basics. Practical '
+        'spreadsheets and frameworks founders actually use.',
+    videoUrl: _vJoyrides,
     icon: Icons.pie_chart_rounded,
     colors: [Color(0xFF92400E), Color(0xFFB45309)],
+    imageAsset: 'Assets/courses/course_05.jpg',
   ),
   _Course(
     name: 'Pitch Like a Pro',
@@ -135,9 +199,15 @@ const _courses = [
     price: 1900,
     rating: 4.5,
     lessons: 12,
+    chapters: 4,
     students: '980',
+    description:
+        'Structure a story investors remember. Slide craft, delivery drills, '
+        'and objection handling for demo days and board rooms.',
+    videoUrl: _vMeltdowns,
     icon: Icons.co_present_rounded,
     colors: [Color(0xFF3730A3), Color(0xFF4F46E5)],
+    imageAsset: 'Assets/courses/course_06.jpg',
   ),
   _Course(
     name: 'Brand Storytelling',
@@ -145,9 +215,15 @@ const _courses = [
     price: 2400,
     rating: 4.7,
     lessons: 14,
+    chapters: 5,
     students: '1.7k',
+    description:
+        'Find your brand voice and turn it into campaigns. Narrative arcs, '
+        'visual language, and content that builds loyal audiences.',
+    videoUrl: _vSubaru,
     icon: Icons.campaign_rounded,
     colors: [Color(0xFF9F1239), Color(0xFFE11D48)],
+    imageAsset: 'Assets/courses/course_07.jpg',
   ),
   _Course(
     name: 'SEO Fundamentals',
@@ -155,9 +231,15 @@ const _courses = [
     price: 1500,
     rating: 4.6,
     lessons: 10,
+    chapters: 4,
     students: '1.1k',
+    description:
+        'Keyword research, on-page structure, and technical basics that help '
+        'your product pages rank and convert organic traffic.',
+    videoUrl: _vElephants,
     icon: Icons.travel_explore_rounded,
     colors: [Color(0xFF166534), Color(0xFF16A34A)],
+    imageAsset: 'Assets/courses/course_08.jpg',
   ),
 ];
 
@@ -194,32 +276,110 @@ class ELearningSection extends StatefulWidget {
 class _ELearningSectionState extends State<ELearningSection>
     with TickerProviderStateMixin {
   final _pageController = PageController(viewportFraction: .9);
+  final _topScroll = ScrollController();
+  final _searchController = TextEditingController();
+  final _searchFocus = FocusNode();
   int _featuredIndex = 0;
+  int _topIndex = 0;
   String _category = 'All';
+  String _query = '';
+  Timer? _autoScroll;
+  Timer? _topAutoScroll;
+  bool _userDragging = false;
+  bool _topUserDragging = false;
+
+  static const _topCardExtent = 208.0; // 196 width + 12 gap
 
   late final AnimationController _entrance = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
   )..forward();
 
-  /// Continuous phase shared by every liquid surface in the section.
+  // Lightweight ticker kept only for one-shot entrance / enroll fills.
   late final AnimationController _wave = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2600),
-  )..repeat();
+  );
 
-  /// Light band drifting across the featured glass cards.
-  late final AnimationController _sheen = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 7),
-  )..repeat();
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      final next = _searchController.text.trim();
+      if (next == _query) return;
+      setState(() => _query = next);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startAutoScroll();
+      _startTopAutoScroll();
+    });
+  }
+
+  void _startAutoScroll() {
+    _autoScroll?.cancel();
+    _autoScroll = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || _userDragging) return;
+      if (!_pageController.hasClients) return;
+      final next = (_featuredIndex + 1) % _featuredCourses.length;
+      _pageController.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 520),
+        curve: Curves.easeInOutCubic,
+      );
+    });
+  }
+
+  void _pauseAutoScroll() {
+    _userDragging = true;
+    _autoScroll?.cancel();
+  }
+
+  void _resumeAutoScroll() {
+    _userDragging = false;
+    _startAutoScroll();
+  }
+
+  void _startTopAutoScroll() {
+    _topAutoScroll?.cancel();
+    _topAutoScroll = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || _topUserDragging) return;
+      if (!_topScroll.hasClients) return;
+      final count = _topSelling.length;
+      if (count == 0) return;
+      _topIndex = (_topIndex + 1) % count;
+      final target = (_topIndex * _topCardExtent).clamp(
+        0.0,
+        _topScroll.position.maxScrollExtent,
+      );
+      _topScroll.animateTo(
+        target,
+        duration: const Duration(milliseconds: 520),
+        curve: Curves.easeInOutCubic,
+      );
+    });
+  }
+
+  void _pauseTopAutoScroll() {
+    _topUserDragging = true;
+    _topAutoScroll?.cancel();
+  }
+
+  void _resumeTopAutoScroll() {
+    _topUserDragging = false;
+    _startTopAutoScroll();
+  }
 
   @override
   void dispose() {
+    _autoScroll?.cancel();
+    _topAutoScroll?.cancel();
+    _searchController.dispose();
+    _searchFocus.dispose();
     _entrance.dispose();
     _wave.dispose();
-    _sheen.dispose();
     _pageController.dispose();
+    _topScroll.dispose();
     super.dispose();
   }
 
@@ -245,9 +405,15 @@ class _ELearningSectionState extends State<ELearningSection>
     );
   }
 
-  List<_Course> get _visibleCourses => _category == 'All'
-      ? _courses
-      : _courses.where((c) => c.category == _category).toList();
+  List<_Course> get _visibleCourses {
+    final q = _query.toLowerCase();
+    return _courses.where((c) {
+      if (_category != 'All' && c.category != _category) return false;
+      if (q.isEmpty) return true;
+      return c.name.toLowerCase().contains(q) ||
+          c.category.toLowerCase().contains(q);
+    }).toList();
+  }
 
   /// Ranked by student count (parsed loosely from the display string).
   List<_Course> get _topSelling {
@@ -265,31 +431,195 @@ class _ELearningSectionState extends State<ELearningSection>
   @override
   Widget build(BuildContext context) {
     final padding = widget.contentPadding;
-    return ListView(
-      padding: EdgeInsets.only(top: padding.top, bottom: padding.bottom + 6),
-      children: [
-        _stagger(index: 0, child: _buildFeatured()),
-        const SizedBox(height: 16),
-        _stagger(index: 1, child: const _LearnTrustBar()),
-        const SizedBox(height: 22),
-        _stagger(index: 2, child: _FloatingTitle('Top selling', wave: _wave)),
-        const SizedBox(height: 12),
-        _stagger(index: 2, child: _buildTopSelling()),
-        const SizedBox(height: 22),
-        _stagger(
-          index: 3,
-          child: _FloatingTitle('Categories', wave: _wave, phaseShift: pi * .5),
+    final courses = _visibleCourses;
+    return CustomScrollView(
+      cacheExtent: 280,
+      physics: const ClampingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.only(top: padding.top),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _stagger(index: 0, child: _buildFeatured()),
+              const SizedBox(height: 16),
+              _stagger(index: 1, child: const _LearnTrustBar()),
+              const SizedBox(height: 16),
+              _stagger(index: 1, child: _buildSearchBar()),
+              const SizedBox(height: 18),
+              _stagger(index: 2, child: const _FloatingTitle('Top selling')),
+              const SizedBox(height: 12),
+              _stagger(index: 2, child: _buildTopSelling()),
+              const SizedBox(height: 22),
+              _stagger(index: 3, child: const _FloatingTitle('Categories')),
+              const SizedBox(height: 12),
+              _stagger(index: 3, child: _buildCategories()),
+              const SizedBox(height: 22),
+              _stagger(
+                index: 4,
+                child: _FloatingTitle(
+                  courses.isEmpty
+                      ? 'No courses found'
+                      : _query.isEmpty
+                      ? 'Courses'
+                      : '${courses.length} result${courses.length == 1 ? '' : 's'}',
+                ),
+              ),
+              const SizedBox(height: 12),
+            ]),
+          ),
         ),
-        const SizedBox(height: 12),
-        _stagger(index: 3, child: _buildCategories()),
-        const SizedBox(height: 22),
-        _stagger(
-          index: 4,
-          child: _FloatingTitle('Courses', wave: _wave, phaseShift: pi * .9),
-        ),
-        const SizedBox(height: 12),
-        _stagger(index: 4, child: _buildGrid()),
+        if (courses.isEmpty)
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 8, 20, padding.bottom + 6),
+            sliver: SliverToBoxAdapter(child: _buildEmptySearch()),
+          )
+        else
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, padding.bottom + 6),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: .78,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final course = courses[index];
+                  return _CourseCard(
+                    course: course,
+                    wave: _wave,
+                  );
+                },
+                childCount: courses.length,
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+                addSemanticIndexes: false,
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  // --------------------------------------------------------------- search
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: FastGlass(
+        borderRadius: BorderRadius.circular(18),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search_rounded,
+              size: 20,
+              color: _ink.withValues(alpha: .45),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                textInputAction: TextInputAction.search,
+                cursorColor: BrandColors.accent,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w500,
+                  color: _ink,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Search courses, categories…',
+                  hintStyle: TextStyle(
+                    fontSize: 14,
+                    color: _ink.withValues(alpha: .38),
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            if (_query.isNotEmpty)
+              FastTap(
+                onTap: () {
+                  _searchController.clear();
+                  _searchFocus.unfocus();
+                },
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: _ink.withValues(alpha: .45),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptySearch() {
+    return FastGlass(
+      borderRadius: BorderRadius.circular(22),
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
+      child: Column(
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 36,
+            color: _ink.withValues(alpha: .35),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No courses for “$_query”',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _ink,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Try another keyword or clear filters.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: _ink.withValues(alpha: .5),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FastTap(
+            onTap: () {
+              _searchController.clear();
+              setState(() => _category = 'All');
+            },
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: BrandColors.secondarySurface,
+              ),
+              child: const Text(
+                'Clear search',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -300,35 +630,19 @@ class _ELearningSectionState extends State<ELearningSection>
       children: [
         SizedBox(
           height: 176,
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: _featuredCourses.length,
-            onPageChanged: (index) {
-              HapticFeedback.selectionClick();
-              setState(() => _featuredIndex = index);
-            },
-            itemBuilder: (context, index) => AnimatedBuilder(
-              animation: _pageController,
-              builder: (context, child) {
-                var delta = 0.0;
-                if (_pageController.hasClients &&
-                    _pageController.position.haveDimensions) {
-                  delta = (_pageController.page ?? 0) - index;
-                }
-                final scale = (1 - delta.abs() * .07).clamp(.85, 1.0);
-                return Transform.translate(
-                  offset: Offset(0, 12 * delta.abs()),
-                  child: Transform.scale(scale: scale, child: child),
-                );
+          child: Listener(
+            onPointerDown: (_) => _pauseAutoScroll(),
+            onPointerUp: (_) => _resumeAutoScroll(),
+            onPointerCancel: (_) => _resumeAutoScroll(),
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: _featuredCourses.length,
+              onPageChanged: (index) {
+                setState(() => _featuredIndex = index);
               },
-              child: Padding(
+              itemBuilder: (context, index) => Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: _FeaturedCourseCard(
-                  item: _featuredCourses[index],
-                  index: index,
-                  wave: _wave,
-                  sheen: _sheen,
-                ),
+                child: _FeaturedCourseCard(item: _featuredCourses[index]),
               ),
             ),
           ),
@@ -363,13 +677,19 @@ class _ELearningSectionState extends State<ELearningSection>
     final top = _topSelling;
     return SizedBox(
       height: 196,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: top.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) =>
-            _TopCourseCard(course: top[index], rank: index + 1, wave: _wave),
+      child: Listener(
+        onPointerDown: (_) => _pauseTopAutoScroll(),
+        onPointerUp: (_) => _resumeTopAutoScroll(),
+        onPointerCancel: (_) => _resumeTopAutoScroll(),
+        child: ListView.separated(
+          controller: _topScroll,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          itemCount: top.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (context, index) =>
+              _TopCourseCard(course: top[index], rank: index + 1, wave: _wave),
+        ),
       ),
     );
   }
@@ -390,7 +710,6 @@ class _ELearningSectionState extends State<ELearningSection>
             label: category.label,
             icon: category.icon,
             selected: category.label == _category,
-            wave: _wave,
             onTap: () {
               HapticFeedback.selectionClick();
               setState(() => _category = category.label);
@@ -401,77 +720,26 @@ class _ELearningSectionState extends State<ELearningSection>
     );
   }
 
-  // ----------------------------------------------------------------- grid
-
-  Widget _buildGrid() {
-    final courses = _visibleCourses;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOutCubic,
-        child: GridView.builder(
-          key: ValueKey(_category),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 14,
-            // Taller cards so View courses + Enroll now sit side by side.
-            childAspectRatio: .62,
-          ),
-          itemCount: courses.length,
-          itemBuilder: (context, index) {
-            final course = courses[index];
-            return TweenAnimationBuilder<double>(
-              key: ValueKey('$_category-${course.name}'),
-              tween: Tween(begin: 0, end: 1),
-              duration: Duration(milliseconds: 420 + index * 60),
-              curve: Curves.easeOutBack,
-              builder: (context, t, child) => Transform.translate(
-                offset: Offset(0, 20 * (1 - t.clamp(0, 1))),
-                child: Transform.scale(
-                  scale: (0.9 + .1 * t).clamp(0, 1.05),
-                  child: Opacity(opacity: t.clamp(0, 1), child: child),
-                ),
-              ),
-              child: _CourseCard(course: course, wave: _wave),
-            );
-          },
-        ),
-      ),
-    );
-  }
 }
 
 // ------------------------------------------------------------------ title
 
 class _FloatingTitle extends StatelessWidget {
-  const _FloatingTitle(this.title, {required this.wave, this.phaseShift = 0});
+  const _FloatingTitle(this.title);
 
   final String title;
-  final AnimationController wave;
-  final double phaseShift;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: wave,
-      builder: (context, child) => Transform.translate(
-        offset: Offset(0, sin(wave.value * 2 * pi + phaseShift) * 2.6),
-        child: child,
-      ),
-      child: Center(
-        child: Text(
-          title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 16.5,
-            fontWeight: FontWeight.w700,
-            color: _ink,
-            letterSpacing: -.2,
-          ),
+    return Center(
+      child: Text(
+        title,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 16.5,
+          fontWeight: FontWeight.w700,
+          color: _ink,
+          letterSpacing: -.2,
         ),
       ),
     );
@@ -487,40 +755,30 @@ class _LearnTrustBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: ClipRRect(
+      child: FastGlass(
         borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 11),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: Colors.white.withValues(alpha: .48),
-              border: Border.all(color: Colors.white.withValues(alpha: .85)),
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        child: const Row(
+          children: [
+            Expanded(
+              child: _TrustItem(
+                icon: Icons.workspace_premium_rounded,
+                label: 'Certificates',
+              ),
             ),
-            child: const Row(
-              children: [
-                Expanded(
-                  child: _TrustItem(
-                    icon: Icons.workspace_premium_rounded,
-                    label: 'Certificates',
-                  ),
-                ),
-                Expanded(
-                  child: _TrustItem(
-                    icon: Icons.groups_rounded,
-                    label: 'Expert mentors',
-                  ),
-                ),
-                Expanded(
-                  child: _TrustItem(
-                    icon: Icons.all_inclusive_rounded,
-                    label: 'Lifetime access',
-                  ),
-                ),
-              ],
+            Expanded(
+              child: _TrustItem(
+                icon: Icons.groups_rounded,
+                label: 'Expert mentors',
+              ),
             ),
-          ),
+            Expanded(
+              child: _TrustItem(
+                icon: Icons.all_inclusive_rounded,
+                label: 'Lifetime access',
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -562,99 +820,50 @@ class _LiquidChip extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.selected,
-    required this.wave,
     required this.onTap,
   });
 
   final String label;
   final IconData icon;
   final bool selected;
-  final AnimationController wave;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return LiquidPressable(
+    final fg = selected ? Colors.white : _ink;
+    return FastTap(
       onTap: onTap,
       borderRadius: BorderRadius.circular(22),
-      rippleColor: selected ? Colors.white : _ink,
-      intensity: .55,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: selected ? 1 : 0),
-        duration: const Duration(milliseconds: 480),
-        curve: Curves.easeInOutCubic,
-        builder: (context, t, _) => AnimatedBuilder(
-          animation: wave,
-          builder: (context, _) {
-            final labelColor = Color.lerp(
-              _ink,
-              Colors.white,
-              ((t - .3) / .45).clamp(0, 1),
-            )!;
-            return Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                color: Colors.white.withValues(alpha: .55),
-                border: Border.all(
-                  color: Color.lerp(
-                    Colors.white.withValues(alpha: .9),
-                    Colors.white.withValues(alpha: .35),
-                    t,
-                  )!,
-                ),
-                boxShadow: t > .85
-                    ? [
-                        BoxShadow(
-                          color: _ink.withValues(alpha: .25),
-                          blurRadius: 14,
-                          offset: const Offset(0, 6),
-                        ),
-                      ]
-                    : const [],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 15),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          color: selected
+              ? BrandColors.secondarySurface
+              : Colors.white.withValues(alpha: .55),
+          border: Border.all(
+            color: selected
+                ? BrandColors.secondarySurface
+                : Colors.white.withValues(alpha: .9),
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: selected ? fg : _muted),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? fg : _ink.withValues(alpha: .8),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(22),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: WaveFillPainter(
-                          phase: wave.value * 2 * pi,
-                          fill: t * 1.08,
-                          color: const Color(0xFF15181F).withValues(alpha: .92),
-                          amplitude: 3,
-                          frequency: 1.5,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            icon,
-                            size: 16,
-                            color: selected ? labelColor : _muted,
-                          ),
-                          const SizedBox(width: 7),
-                          Text(
-                            label,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: labelColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
@@ -664,205 +873,134 @@ class _LiquidChip extends StatelessWidget {
 // ---------------------------------------------------------- featured card
 
 class _FeaturedCourseCard extends StatelessWidget {
-  const _FeaturedCourseCard({
-    required this.item,
-    required this.index,
-    required this.wave,
-    required this.sheen,
-  });
+  const _FeaturedCourseCard({required this.item});
 
   final _FeaturedCourse item;
-  final int index;
-  final AnimationController wave;
-  final AnimationController sheen;
 
   @override
   Widget build(BuildContext context) {
-    return LiquidPressable(
+    return FastTap(
       onTap: () => HapticFeedback.selectionClick(),
       borderRadius: BorderRadius.circular(28),
-      rippleColor: Colors.white,
-      intensity: .35,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: item.colors,
-          ),
-          border: Border.all(color: Colors.white.withValues(alpha: .35)),
-          boxShadow: [
-            BoxShadow(
-              color: item.colors.last.withValues(alpha: .35),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            FastAssetImage(
+              asset: item.imageAsset,
+              fit: BoxFit.cover,
+              width: 420,
+              height: 200,
+              errorColor: item.colors.first,
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: Stack(
-            children: [
-              // Liquid resting at the bottom of the card, always moving.
-              Positioned.fill(
-                child: AnimatedBuilder(
-                  animation: wave,
-                  builder: (context, _) {
-                    final phase = wave.value * 2 * pi + index * 1.7;
-                    return CustomPaint(
-                      painter: WaveFillPainter(
-                        phase: phase,
-                        fill: .20,
-                        color: Colors.white.withValues(alpha: .08),
-                        amplitude: 7,
-                        frequency: 1.15,
-                      ),
-                      foregroundPainter: WaveFillPainter(
-                        phase: phase + 2.2,
-                        fill: .15,
-                        color: Colors.white.withValues(alpha: .10),
-                        amplitude: 5,
-                        frequency: 1.5,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: AnimatedBuilder(
-                    animation: sheen,
-                    builder: (context, _) {
-                      final t = (sheen.value + index * .33) % 1;
-                      return Align(
-                        alignment: Alignment(-1.8 + 3.6 * t, 0),
-                        child: Transform.rotate(
-                          angle: -.55,
-                          child: Container(
-                            width: 70,
-                            height: 320,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.white.withValues(alpha: 0),
-                                  Colors.white.withValues(alpha: .16),
-                                  Colors.white.withValues(alpha: 0),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              Positioned(
-                right: -18,
-                bottom: -18,
-                child: Icon(
-                  item.icon,
-                  size: 130,
-                  color: Colors.white.withValues(alpha: .14),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: Colors.white.withValues(alpha: .18),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: .4),
-                        ),
-                      ),
-                      child: Text(
-                        item.badge,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: .3,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: -.3,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: Colors.white.withValues(alpha: .75),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          item.price,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 13,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(18),
-                            color: Colors.white.withValues(alpha: .92),
-                          ),
-                          child: const Row(
-                            children: [
-                              Text(
-                                'Enroll',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: _ink,
-                                ),
-                              ),
-                              SizedBox(width: 3),
-                              Icon(
-                                Icons.arrow_forward_rounded,
-                                size: 14,
-                                color: _ink,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    item.colors.first.withValues(alpha: .72),
+                    item.colors.last.withValues(alpha: .55),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.white.withValues(alpha: .18),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: .4),
+                      ),
+                    ),
+                    child: Text(
+                      item.badge,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: .3,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 18.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: -.3,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.white.withValues(alpha: .75),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Text(
+                        item.price,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          color: Colors.white.withValues(alpha: .92),
+                        ),
+                        child: const Row(
+                          children: [
+                            Text(
+                              'View',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: _ink,
+                              ),
+                            ),
+                            SizedBox(width: 3),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 14,
+                              color: _ink,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -882,67 +1020,45 @@ class _TopCourseCard extends StatelessWidget {
   final int rank;
   final AnimationController wave;
 
+  void _openDetails(BuildContext context) {
+    _openCourseDetails(context, course);
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: 196,
-      child: LiquidPressable(
-        onTap: () => HapticFeedback.selectionClick(),
+      child: FastTap(
+        onTap: () => _openDetails(context),
         borderRadius: BorderRadius.circular(24),
-        rippleColor: _ink,
-        intensity: .5,
-        child: ClipRRect(
+        child: FastGlass(
           borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withValues(alpha: .58),
-                    Colors.white.withValues(alpha: .30),
-                  ],
-                ),
-                border: Border.all(color: Colors.white.withValues(alpha: .85)),
-              ),
-              child: Column(
+          child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Course art with a moving liquid surface and rank badge.
+                  // Course art with rank badge.
                   SizedBox(
                     height: 84,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Container(
+                        FastAssetImage(
+                          asset: course.imageAsset,
+                          fit: BoxFit.cover,
+                          width: 196,
+                          height: 84,
+                          errorColor: course.colors.first,
+                        ),
+                        DecoratedBox(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: course.colors,
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: .15),
+                                course.colors.last.withValues(alpha: .45),
+                              ],
                             ),
-                          ),
-                        ),
-                        AnimatedBuilder(
-                          animation: wave,
-                          builder: (context, _) => CustomPaint(
-                            painter: WaveFillPainter(
-                              phase: wave.value * 2 * pi + rank,
-                              fill: .3,
-                              color: Colors.white.withValues(alpha: .12),
-                              amplitude: 5,
-                              frequency: 1.3,
-                            ),
-                          ),
-                        ),
-                        Center(
-                          child: Icon(
-                            course.icon,
-                            size: 34,
-                            color: Colors.white.withValues(alpha: .9),
                           ),
                         ),
                         Positioned(
@@ -1024,8 +1140,6 @@ class _TopCourseCard extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-          ),
         ),
       ),
     );
@@ -1041,448 +1155,723 @@ class _CourseCard extends StatelessWidget {
   final AnimationController wave;
 
   void _openDetails(BuildContext context) {
-    HapticFeedback.mediumImpact();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: _ink.withValues(alpha: .28),
-      builder: (_) => _CourseDetailSheet(course: course, wave: wave),
-    );
+    _openCourseDetails(context, course);
   }
 
   @override
   Widget build(BuildContext context) {
-    return LiquidPressable(
+    return FastTap(
       onTap: () => _openDetails(context),
-      borderRadius: BorderRadius.circular(24),
-      rippleColor: _ink,
-      intensity: 1.05,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: AnimatedBuilder(
-            animation: wave,
-            builder: (context, child) => Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withValues(alpha: .58),
-                    Colors.white.withValues(alpha: .30),
-                  ],
-                ),
-                border: Border.all(color: Colors.white.withValues(alpha: .85)),
-                boxShadow: [
-                  BoxShadow(
-                    color: course.colors.last.withValues(alpha: .12),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // Soft liquid resting across the frosted card body.
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: WaveFillPainter(
-                        phase: wave.value * 2 * pi + course.lessons * .2,
-                        fill: .12,
-                        color: _ink.withValues(alpha: .04),
-                        amplitude: 3,
-                        frequency: 1.4,
+      borderRadius: BorderRadius.circular(22),
+      child: FastGlass(
+        borderRadius: BorderRadius.circular(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Cover image — rounded top only.
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+              child: AspectRatio(
+                aspectRatio: 1.45,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    FastAssetImage(
+                      asset: course.imageAsset,
+                      fit: BoxFit.cover,
+                      width: 220,
+                      height: 140,
+                      errorColor: course.colors.first,
+                    ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: .05),
+                            course.colors.last.withValues(alpha: .35),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  child!,
-                ],
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: Colors.white.withValues(alpha: .94),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 12,
+                              color: Color(0xFFF59E0B),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              course.rating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: _ink,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 8,
+                      bottom: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.black.withValues(alpha: .35),
+                        ),
+                        child: Text(
+                          course.category,
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      course.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _ink,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${course.lessons} lessons · ${course.students} learners',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, color: _muted),
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            formatRs(course.price),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                            ),
+                          ),
+                        ),
+                        _CardIconButton(
+                          icon: Icons.visibility_rounded,
+                          onTap: () => _openDetails(context),
+                        ),
+                        const SizedBox(width: 6),
+                        _EnrollButton(wave: wave, compact: true),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _openCourseDetails(BuildContext context, _Course course) {
+  HapticFeedback.mediumImpact();
+  Navigator.of(context).push(
+    PageRouteBuilder<void>(
+      transitionDuration: const Duration(milliseconds: 380),
+      reverseTransitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (_, animation, __) => FadeTransition(
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, .04),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
+          child: _CourseDetailPage(course: course),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Compact square icon control used on course cards.
+class _CardIconButton extends StatelessWidget {
+  const _CardIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FastTap(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.white.withValues(alpha: .7),
+          border: Border.all(color: Colors.white.withValues(alpha: .95)),
+        ),
+        child: Icon(icon, size: 15, color: _ink.withValues(alpha: .8)),
+      ),
+    );
+  }
+}
+
+/// Full-page course detail: cover video, name, description, chapters /
+/// episodes, and enroll actions.
+class _CourseDetailPage extends StatefulWidget {
+  const _CourseDetailPage({required this.course});
+
+  final _Course course;
+
+  @override
+  State<_CourseDetailPage> createState() => _CourseDetailPageState();
+}
+
+class _CourseDetailPageState extends State<_CourseDetailPage>
+    with TickerProviderStateMixin {
+  late final VideoPlayerController _video;
+  late final AnimationController _wave = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2600),
+  )..repeat();
+
+  bool _ready = false;
+  bool _failed = false;
+  bool _showControls = true;
+
+  _Course get course => widget.course;
+
+  @override
+  void initState() {
+    super.initState();
+    _video = VideoPlayerController.networkUrl(Uri.parse(course.videoUrl))
+      ..setLooping(true)
+      ..setVolume(1);
+    _initVideo();
+  }
+
+  Future<void> _initVideo() async {
+    try {
+      await _video.initialize();
+      if (!mounted) return;
+      _video.addListener(_onVideoTick);
+      setState(() {
+        _ready = true;
+        _showControls = false;
+      });
+      await _video.play();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _failed = true);
+    }
+  }
+
+  void _onVideoTick() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _video.removeListener(_onVideoTick);
+    _video.dispose();
+    _wave.dispose();
+    super.dispose();
+  }
+
+  void _togglePlay() {
+    HapticFeedback.selectionClick();
+    if (!_ready) return;
+    setState(() {
+      if (_video.value.isPlaying) {
+        _video.pause();
+        _showControls = true;
+      } else {
+        _video.play();
+        _showControls = false;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomSafe = MediaQuery.paddingOf(context).bottom;
+
+    return Scaffold(
+      backgroundColor: BrandColors.canvas,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AnimatedBlobBackground(animate: false),
+          SafeArea(
+            bottom: false,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Course image: gradient art with liquid pooled at its base.
-                SizedBox(
-                  height: 88,
-                  child: Stack(
-                    fit: StackFit.expand,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 16, 8),
+                  child: Row(
                     children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: course.colors,
-                          ),
-                        ),
-                      ),
-                      AnimatedBuilder(
-                        animation: wave,
-                        builder: (context, _) => CustomPaint(
-                          painter: WaveFillPainter(
-                            phase: wave.value * 2 * pi + course.lessons,
-                            fill: .28,
-                            color: Colors.white.withValues(alpha: .12),
-                            amplitude: 5,
-                            frequency: 1.3,
-                          ),
-                          foregroundPainter: WaveFillPainter(
-                            phase: wave.value * 2 * pi + course.lessons + 1.8,
-                            fill: .18,
-                            color: Colors.white.withValues(alpha: .08),
-                            amplitude: 3.5,
-                            frequency: 1.6,
-                          ),
-                        ),
-                      ),
-                      Center(
-                        child: Icon(
-                          course.icon,
-                          size: 34,
-                          color: Colors.white.withValues(alpha: .92),
-                        ),
-                      ),
-                      Positioned(
-                        top: 8,
-                        right: 8,
+                      FastTap(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          Navigator.of(context).pop();
+                        },
+                        borderRadius: BorderRadius.circular(999),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
-                          ),
+                          width: 40,
+                          height: 40,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: Colors.white.withValues(alpha: .9),
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: .7),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .95),
+                            ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.star_rounded,
-                                size: 11,
-                                color: Color(0xFFB45309),
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                course.rating.toStringAsFixed(1),
-                                style: const TextStyle(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: _ink,
-                                ),
-                              ),
-                            ],
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            size: 20,
+                            color: _ink.withValues(alpha: .85),
                           ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          course.category,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _ink.withValues(alpha: .55),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          color: Colors.white.withValues(alpha: .7),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: .95),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 14,
+                              color: Color(0xFFF59E0B),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              course.rating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: _ink,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          course.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: _ink,
-                          ),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                    children: [
+                      _buildCoverVideo(),
+                      const SizedBox(height: 20),
+                      Text(
+                        course.name,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: _ink,
+                          letterSpacing: -.5,
+                          height: 1.15,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${course.lessons} lessons · ${course.students} learners',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 10, color: _muted),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        course.description,
+                        style: TextStyle(
+                          fontSize: 15,
+                          height: 1.5,
+                          color: _ink.withValues(alpha: .75),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          formatRs(course.price),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: _ink,
-                          ),
+                      ),
+                      const SizedBox(height: 18),
+                      _ChapterRow(
+                        chapters: course.chapters,
+                        lessons: course.lessons,
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        '${course.category} · ${course.students} learners · '
+                        '★ ${course.rating} · ${formatRs(course.price)}',
+                        style: const TextStyle(fontSize: 13, color: _muted),
+                      ),
+                      const SizedBox(height: 28),
+                      Text(
+                        'What you\'ll get',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: _ink.withValues(alpha: .9),
+                          letterSpacing: -.2,
                         ),
-                        const Spacer(),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _ViewCoursesButton(
-                                wave: wave,
-                                onTap: () => _openDetails(context),
+                      ),
+                      const SizedBox(height: 12),
+                      _DetailPerk(
+                        icon: Icons.play_lesson_rounded,
+                        title: '${course.lessons} guided episodes',
+                        subtitle: 'Stream anytime on any device',
+                      ),
+                      const SizedBox(height: 8),
+                      _DetailPerk(
+                        icon: Icons.menu_book_rounded,
+                        title: '${course.chapters} structured chapters',
+                        subtitle: 'Learn in a clear, progressive path',
+                      ),
+                      const SizedBox(height: 8),
+                      const _DetailPerk(
+                        icon: Icons.workspace_premium_rounded,
+                        title: 'Completion certificate',
+                        subtitle: 'Shareable proof when you finish',
+                      ),
+                      SizedBox(height: 88 + bottomSafe),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: EdgeInsets.fromLTRB(20, 14, 20, 14 + bottomSafe),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    BrandColors.canvas.withValues(alpha: 0),
+                    BrandColors.canvas.withValues(alpha: .92),
+                    BrandColors.canvas,
+                  ],
+                  stops: const [0, .35, 1],
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: LiquidPressable(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        Navigator.of(context).pop();
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      rippleColor: _ink,
+                      intensity: 1.1,
+                      child: FastGlass(
+                        borderRadius: BorderRadius.circular(16),
+                        opacity: .78,
+                        child: const SizedBox(
+                          height: 48,
+                          child: Center(
+                            child: Text(
+                              'Close',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: _ink,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            Expanded(child: _EnrollButton(wave: wave)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Glass "View courses" control — liquid press + a soft ink wash on tap.
-class _ViewCoursesButton extends StatelessWidget {
-  const _ViewCoursesButton({required this.wave, required this.onTap});
-
-  final AnimationController wave;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return LiquidPressable(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(14),
-      rippleColor: _ink,
-      intensity: 1.15,
-      child: AnimatedBuilder(
-        animation: wave,
-        builder: (context, _) => Container(
-          height: 36,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: Colors.white.withValues(alpha: .55),
-            border: Border.all(color: Colors.white.withValues(alpha: .95)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(13),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: WaveFillPainter(
-                      phase: wave.value * 2 * pi + .8,
-                      fill: .18,
-                      color: _ink.withValues(alpha: .07),
-                      amplitude: 2.5,
-                      frequency: 1.5,
-                    ),
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.visibility_rounded, size: 13, color: _ink),
-                        SizedBox(width: 4),
-                        Text(
-                          'View courses',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: .1,
-                            color: _ink,
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Liquid glass sheet that wells up when a course card (or View) is tapped.
-class _CourseDetailSheet extends StatelessWidget {
-  const _CourseDetailSheet({required this.course, required this.wave});
-
-  final _Course course;
-  final AnimationController wave;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: .86),
-                  Colors.white.withValues(alpha: .62),
+                  const SizedBox(width: 12),
+                  Expanded(child: _EnrollButton(wave: _wave)),
                 ],
               ),
-              border: Border(
-                top: BorderSide(color: Colors.white.withValues(alpha: .95)),
-              ),
             ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 42,
-                        height: 4.5,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(4),
-                          color: _ink.withValues(alpha: .18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoverVideo() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            FastAssetImage(
+              asset: course.imageAsset,
+              fit: BoxFit.cover,
+              width: 720,
+              height: 404,
+              errorColor: course.colors.first,
+            ),
+            if (_ready)
+              FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _video.value.size.width,
+                  height: _video.value.size.height,
+                  child: VideoPlayer(_video),
+                ),
+              ),
+            if (!_ready && !_failed)
+              ColoredBox(
+                color: Colors.black.withValues(alpha: .35),
+                child: const Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            if (_failed)
+              ColoredBox(
+                color: Colors.black.withValues(alpha: .4),
+                child: const Center(
+                  child: Text(
+                    'Video unavailable',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _togglePlay,
+                child: AnimatedOpacity(
+                  opacity: (!_ready ||
+                          _failed ||
+                          _showControls ||
+                          !_video.value.isPlaying)
+                      ? 1
+                      : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Center(
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black.withValues(alpha: .38),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: .55),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: SizedBox(
-                        height: 120,
-                        width: double.infinity,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: course.colors,
-                                ),
-                              ),
-                            ),
-                            AnimatedBuilder(
-                              animation: wave,
-                              builder: (context, _) => CustomPaint(
-                                painter: WaveFillPainter(
-                                  phase: wave.value * 2 * pi,
-                                  fill: .3,
-                                  color: Colors.white.withValues(alpha: .12),
-                                  amplitude: 6,
-                                  frequency: 1.25,
-                                ),
-                              ),
-                            ),
-                            Center(
-                              child: Icon(
-                                course.icon,
-                                size: 48,
-                                color: Colors.white.withValues(alpha: .92),
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: Icon(
+                        _ready && _video.value.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 36,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      course.name,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: _ink,
-                        letterSpacing: -.3,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${course.category} · ${course.lessons} lessons · '
-                      '${course.students} learners · ★ ${course.rating}',
-                      style: const TextStyle(fontSize: 12.5, color: _muted),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      formatRs(course.price),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: _ink,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'A premium liquid-designed course with practical lessons, '
-                      'mentor feedback and a certificate when you finish.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        color: _ink.withValues(alpha: .7),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: LiquidPressable(
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              Navigator.of(context).pop();
-                            },
-                            borderRadius: BorderRadius.circular(14),
-                            rippleColor: _ink,
-                            intensity: 1.1,
-                            child: Container(
-                              height: 44,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                color: Colors.white.withValues(alpha: .55),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: .95),
-                                ),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'Close',
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: _ink,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(child: _EnrollButton(wave: wave)),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _DetailPerk extends StatelessWidget {
+  const _DetailPerk({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return FastGlass(
+      borderRadius: BorderRadius.circular(18),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      opacity: .72,
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: BrandColors.accent.withValues(alpha: .18),
+            ),
+            child: Icon(icon, size: 20, color: BrandColors.accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _ink.withValues(alpha: .5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChapterRow extends StatelessWidget {
+  const _ChapterRow({required this.chapters, required this.lessons});
+
+  final int chapters;
+  final int lessons;
+
+  @override
+  Widget build(BuildContext context) {
+    return FastGlass(
+      borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      opacity: .78,
+      child: Row(
+        children: [
+          Expanded(
+            child: _MetaChip(
+              icon: Icons.menu_book_rounded,
+              label: '$chapters chapters',
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 28,
+            color: _ink.withValues(alpha: .1),
+          ),
+          Expanded(
+            child: _MetaChip(
+              icon: Icons.play_circle_outline_rounded,
+              label: '$lessons episodes',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 18, color: BrandColors.accent),
+        const SizedBox(width: 7),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: _ink,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1535,7 +1924,7 @@ class _EnrollButtonState extends State<_EnrollButton>
       rippleColor: _enrolled ? Colors.white : _ink,
       intensity: 1.2,
       child: AnimatedBuilder(
-        animation: Listenable.merge([widget.wave, _fill]),
+        animation: _fill,
         builder: (context, _) {
           final level = Curves.easeOutCubic.transform(_fill.value);
           final labelColor = Color.lerp(
@@ -1544,7 +1933,7 @@ class _EnrollButtonState extends State<_EnrollButton>
             ((level - .3) / .45).clamp(0, 1),
           )!;
           return Container(
-            height: compact ? 30 : 36,
+            height: compact ? 30 : 48,
             width: compact ? null : double.infinity,
             padding: compact
                 ? const EdgeInsets.symmetric(horizontal: 11)
@@ -1577,9 +1966,11 @@ class _EnrollButtonState extends State<_EnrollButton>
                   Positioned.fill(
                     child: CustomPaint(
                       painter: WaveFillPainter(
-                        phase: widget.wave.value * 2 * pi,
+                        phase: level * 4,
                         fill: level * 1.1,
-                        color: const Color(0xFF15181F).withValues(alpha: .93),
+                        color: BrandColors.secondarySurface.withValues(
+                          alpha: .93,
+                        ),
                         amplitude: 3,
                         frequency: 1.4,
                       ),

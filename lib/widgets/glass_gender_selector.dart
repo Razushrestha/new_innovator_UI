@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
-const _ink = Color(0xFF1B1E28);
+const _ink = BrandColors.ink;
 
 /// Segmented glass control for picking gender. The selected pill slides
 /// between options and fills with ink, matching the primary button.
@@ -27,7 +28,10 @@ class GlassGenderSelector extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: .45),
         borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: Colors.white.withValues(alpha: .9), width: 1.2),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: .9),
+          width: 1.2,
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -48,8 +52,8 @@ class GlassGenderSelector extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          const Color(0xFF2A2F3E).withValues(alpha: .92),
-                          const Color(0xFF15181F).withValues(alpha: .88),
+                          BrandColors.secondarySurface.withValues(alpha: .92),
+                          BrandColors.secondarySurface.withValues(alpha: .88),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(14),

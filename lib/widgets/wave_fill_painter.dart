@@ -27,7 +27,8 @@ class WaveFillPainter extends CustomPainter {
     final path = Path()..moveTo(0, size.height);
     for (double x = 0; x <= size.width + 3; x += 3) {
       final y =
-          level + sin(phase + (x / size.width) * frequency * 2 * pi) * amplitude;
+          level +
+          sin(phase + (x / size.width) * frequency * 2 * pi) * amplitude;
       path.lineTo(x, y);
     }
     path.lineTo(size.width, size.height);

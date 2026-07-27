@@ -1,10 +1,13 @@
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../theme/brand_colors.dart';
 
 import 'liquid_pressable.dart';
+import 'wave_fill_painter.dart';
 
-const _ink = Color(0xFF1B1E28);
+const _ink = BrandColors.ink;
 
 /// Shared motion for the travelling curve: a slight overshoot before
 /// settling, like liquid finding its level.
@@ -47,22 +50,28 @@ class NavLogoOrb extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF343B4E), Color(0xFF15181F)],
+          colors: [BrandColors.secondarySurface, BrandColors.secondarySurface],
         ),
-        border:
-            Border.all(color: Colors.white.withValues(alpha: .55), width: 1.5),
+        border: Border.all(
+          color: BrandColors.accent.withValues(alpha: .75),
+          width: 1.6,
+        ),
         boxShadow: [
           BoxShadow(
-            color: _ink.withValues(alpha: .35),
+            color: BrandColors.accent.withValues(alpha: .28),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Icon(
-        Icons.water_drop_rounded,
-        size: size * .44,
-        color: Colors.white,
+      // Innovator mark fills the dark orb completely.
+      child: ClipOval(
+        child: Image.asset(
+          'Assets/center_logo.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+        ),
       ),
     );
 
@@ -72,7 +81,7 @@ class NavLogoOrb extends StatelessWidget {
       child: LiquidPressable(
         onTap: onTap!,
         borderRadius: BorderRadius.circular(999),
-        rippleColor: Colors.white,
+        rippleColor: BrandColors.accent,
         child: orb,
       ),
     );
@@ -146,8 +155,7 @@ class LiquidNavBar extends StatelessWidget {
         // A single travelling notch: under the selected tab, or under the
         // logo at the center when nothing is selected.
         final targetX = hasSelection ? centers[selectedIndex] : width / 2;
-        final targetR =
-            hasSelection ? _iconOrb / 2 + 7 : _orbSize / 2 + 7;
+        final targetR = hasSelection ? _iconOrb / 2 + 7 : _orbSize / 2 + 7;
         final notchY = onBottom ? 7.0 : _barHeight - 7.0;
 
         final iconRestTop = onBottom
@@ -222,7 +230,7 @@ class LiquidNavBar extends StatelessWidget {
                       height: 5,
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _ink,
+                        color: BrandColors.accent,
                       ),
                     ),
                   ),
@@ -245,59 +253,48 @@ class LiquidNavBar extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 7),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: .38),
-                Colors.white.withValues(alpha: .16),
-              ],
-            ),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: .95),
-              width: 1.2,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              NavLogoOrb(size: 48, onTap: onLogoTap),
-              const SizedBox(height: 14),
-              Container(
-                width: 26,
-                height: 1,
-                color: _ink.withValues(alpha: .12),
-              ),
-              const SizedBox(height: 8),
-              for (final item in regular) ...[
-                _CurveNavIcon(
-                  item: item,
-                  selected: selectedIndex == all.indexOf(item),
-                  onTap: () => onSelect(all.indexOf(item)),
-                ),
-                const SizedBox(height: 4),
-              ],
-              if (pinned.isNotEmpty) ...[
-                const SizedBox(height: 4),
+        filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+        child: _LiquidGlassFill(
+          borderRadius: BorderRadius.circular(28),
+          bordered: true,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 7),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                NavLogoOrb(size: 48, onTap: onLogoTap),
+                const SizedBox(height: 14),
                 Container(
                   width: 26,
                   height: 1,
-                  color: _ink.withValues(alpha: .12),
+                  color: _ink.withValues(alpha: .10),
                 ),
                 const SizedBox(height: 8),
-                for (final item in pinned)
+                for (final item in regular) ...[
                   _CurveNavIcon(
                     item: item,
-                    selected: false,
+                    selected: selectedIndex == all.indexOf(item),
                     onTap: () => onSelect(all.indexOf(item)),
                   ),
+                  const SizedBox(height: 4),
+                ],
+                if (pinned.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 26,
+                    height: 1,
+                    color: _ink.withValues(alpha: .10),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final item in pinned)
+                    _CurveNavIcon(
+                      item: item,
+                      selected: false,
+                      onTap: () => onSelect(all.indexOf(item)),
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -305,22 +302,144 @@ class LiquidNavBar extends StatelessWidget {
   }
 }
 
+/// Near-clear glass with a soft waving liquid pool.
+class _LiquidGlassFill extends StatefulWidget {
+  const _LiquidGlassFill({
+    required this.child,
+    this.borderRadius,
+    this.bordered = false,
+  });
+
+  final Widget child;
+  final BorderRadius? borderRadius;
+  final bool bordered;
+
+  @override
+  State<_LiquidGlassFill> createState() => _LiquidGlassFillState();
+}
+
+class _LiquidGlassFillState extends State<_LiquidGlassFill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _wave = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _wave.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _wave,
+      builder: (context, child) {
+        final phase = _wave.value * 2 * pi;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: widget.borderRadius,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: .012),
+                Colors.white.withValues(alpha: .004),
+              ],
+            ),
+            border: widget.bordered
+                ? Border.all(
+                    color: Colors.white.withValues(alpha: .10),
+                    width: 0.8,
+                  )
+                : null,
+          ),
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: WaveFillPainter(
+                    phase: phase + 1.2,
+                    fill: .36,
+                    color: BrandColors.accent.withValues(alpha: .015),
+                    amplitude: 3,
+                    frequency: 1.35,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: WaveFillPainter(
+                    phase: phase,
+                    fill: .22,
+                    color: Colors.white.withValues(alpha: .012),
+                    amplitude: 2.2,
+                    frequency: 1.7,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: widget.borderRadius,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0, .4, 1],
+                        colors: [
+                          Colors.white.withValues(alpha: .03),
+                          Colors.white.withValues(alpha: .0),
+                          Colors.white.withValues(alpha: .008),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              child!,
+            ],
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
 /// Frosted bar whose shape has circular notches carved out of its rim.
-/// Kept deliberately transparent: a heavy backdrop blur, a whisper of
-/// white, a specular sheen along the top, and a soft shadow beneath.
-class _NotchedGlassBar extends StatelessWidget {
+/// Heavy blur, whisper of white, waving liquid pool, soft specular sheen.
+class _NotchedGlassBar extends StatefulWidget {
   const _NotchedGlassBar({required this.notches});
 
   /// Bar-local (x, y, radius) of each carved notch.
   final List<(double, double, double)> notches;
 
+  @override
+  State<_NotchedGlassBar> createState() => _NotchedGlassBarState();
+}
+
+class _NotchedGlassBarState extends State<_NotchedGlassBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _wave = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _wave.dispose();
+    super.dispose();
+  }
+
   Path _buildPath(Size size) {
     var path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Offset.zero & size,
-        const Radius.circular(26),
-      ));
-    for (final (x, y, r) in notches) {
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(26)),
+      );
+    for (final (x, y, r) in widget.notches) {
       final circle = Path()
         ..addOval(Rect.fromCircle(center: Offset(x, y), radius: r));
       path = Path.combine(PathOperation.difference, path, circle);
@@ -335,36 +454,63 @@ class _NotchedGlassBar extends StatelessWidget {
       child: ClipPath(
         clipper: _PathClipper(_buildPath),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
+          filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
           child: CustomPaint(
             foregroundPainter: _PathBorderPainter(_buildPath),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withValues(alpha: .38),
-                    Colors.white.withValues(alpha: .16),
+            child: AnimatedBuilder(
+              animation: _wave,
+              builder: (context, _) {
+                final phase = _wave.value * 2 * pi;
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withValues(alpha: .012),
+                            Colors.white.withValues(alpha: .004),
+                          ],
+                        ),
+                      ),
+                    ),
+                    CustomPaint(
+                      painter: WaveFillPainter(
+                        phase: phase + 1.1,
+                        fill: .48,
+                        color: BrandColors.accent.withValues(alpha: .015),
+                        amplitude: 2.8,
+                        frequency: 1.4,
+                      ),
+                    ),
+                    CustomPaint(
+                      painter: WaveFillPainter(
+                        phase: phase,
+                        fill: .30,
+                        color: Colors.white.withValues(alpha: .012),
+                        amplitude: 2.0,
+                        frequency: 1.8,
+                      ),
+                    ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: const [0, .45, 1],
+                          colors: [
+                            Colors.white.withValues(alpha: .03),
+                            Colors.white.withValues(alpha: .0),
+                            Colors.white.withValues(alpha: .008),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
-                ),
-              ),
-              child: DecoratedBox(
-                // Specular sheen: light catching the upper face.
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0, .45, 1],
-                    colors: [
-                      Colors.white.withValues(alpha: .30),
-                      Colors.white.withValues(alpha: .02),
-                      Colors.white.withValues(alpha: .12),
-                    ],
-                  ),
-                ),
-                child: const SizedBox.expand(),
-              ),
+                );
+              },
             ),
           ),
         ),
@@ -381,9 +527,9 @@ class _PathShadowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawShadow(
-      builder(size).shift(const Offset(0, 3)),
-      _ink.withValues(alpha: .45),
-      12,
+      builder(size).shift(const Offset(0, 2)),
+      _ink.withValues(alpha: .025),
+      8,
       true,
     );
   }
@@ -415,8 +561,8 @@ class _PathBorderPainter extends CustomPainter {
       builder(size),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = Colors.white.withValues(alpha: .95),
+        ..strokeWidth = 0.8
+        ..color = Colors.white.withValues(alpha: .10),
     );
   }
 
@@ -441,8 +587,8 @@ class _CurveNavIcon extends StatelessWidget {
     final color = item.destructive
         ? const Color(0xFFC0392B)
         : selected
-            ? Colors.white
-            : _ink.withValues(alpha: .45);
+        ? Colors.white
+        : _ink.withValues(alpha: .45);
 
     return Tooltip(
       message: item.label,
@@ -462,12 +608,15 @@ class _CurveNavIcon extends StatelessWidget {
                 ? const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFF343B4E), Color(0xFF15181F)],
+                    colors: [
+                      BrandColors.secondarySurface,
+                      BrandColors.secondarySurface,
+                    ],
                   )
                 : null,
             border: Border.all(
               color: selected
-                  ? Colors.white.withValues(alpha: .55)
+                  ? BrandColors.accent.withValues(alpha: .7)
                   : Colors.transparent,
               width: 1.5,
             ),
