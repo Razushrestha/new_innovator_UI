@@ -3,9 +3,13 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
+import 'models/api_response.dart';
+import 'models/chat_models.dart';
+import 'services/auth_session.dart';
+import 'services/chat_api.dart';
+import 'theme/brand_colors.dart';
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
@@ -13,37 +17,117 @@ const _ink = BrandColors.ink;
 const _muted = BrandColors.muted;
 const _online = Color(0xFF17A275);
 
+const _avatarPalettes = <List<Color>>[
+  [Color(0xFF4C1D95), Color(0xFF7C3AED)],
+  [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+  [Color(0xFF0F766E), Color(0xFF14B8A6)],
+  [Color(0xFF92400E), Color(0xFFB45309)],
+  [Color(0xFF9F1239), Color(0xFFE11D48)],
+  [Color(0xFF0369A1), Color(0xFF38BDF8)],
+  [Color(0xFF047857), Color(0xFF34D399)],
+  [Color(0xFF6D28D9), Color(0xFFA78BFA)],
+];
+
+List<Color> _colorsFor(String seed) {
+  final i = seed.hashCode.abs() % _avatarPalettes.length;
+  return _avatarPalettes[i];
+}
+
+String _formatChatTime(DateTime? dt) {
+  if (dt == null) return '';
+  final now = DateTime.now();
+  final diff = now.difference(dt);
+  if (diff.inMinutes < 1) return 'now';
+  if (diff.inHours < 1) return '${diff.inMinutes}m';
+  if (diff.inDays < 1) return '${diff.inHours}h';
+  if (diff.inDays < 7) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days[dt.weekday - 1];
+  }
+  return '${dt.day}/${dt.month}';
+}
+
+String _formatBubbleTime(DateTime? dt) {
+  if (dt == null) return '';
+  final local = dt.toLocal();
+  final h = local.hour.toString().padLeft(2, '0');
+  final m = local.minute.toString().padLeft(2, '0');
+  return '$h:$m';
+}
+
 class _Conversation {
   _Conversation({
+    required this.id,
     required this.name,
     required this.role,
     required this.preview,
     required this.time,
     required this.colors,
+    this.peerUserId,
     this.unread = 0,
     this.isOnline = false,
   });
 
+  final String id;
   final String name;
   final String role;
   final String preview;
   final String time;
   final List<Color> colors;
+  final String? peerUserId;
   int unread;
   final bool isOnline;
+
+  factory _Conversation.fromApi(ChatConversation c) {
+    final me = AuthSession.instance.userId;
+    final peer = c.peerOf(me);
+    final name = peer?.username?.trim().isNotEmpty == true
+        ? peer!.username!.trim()
+        : 'Chat';
+    final preview = c.lastMessage?.content?.trim().isNotEmpty == true
+        ? c.lastMessage!.content!.trim()
+        : 'No messages yet';
+    return _Conversation(
+      id: c.id,
+      name: name,
+      role: 'Direct',
+      preview: preview,
+      time: _formatChatTime(c.lastMessage?.createdAt ?? c.createdAt),
+      colors: _colorsFor(peer?.userId ?? c.id),
+      peerUserId: peer?.userId,
+      unread: c.unreadCount,
+    );
+  }
 }
 
 enum _AutoDelete { never, hours24 }
 
 class _Msg {
-  _Msg(this.text, {required this.mine, required this.time, String? id})
-    : id = id ?? UniqueKey().toString();
+  _Msg(
+    this.text, {
+    required this.mine,
+    required this.time,
+    String? id,
+    this.createdAt,
+  }) : id = id ?? UniqueKey().toString();
 
   final String id;
   final String text;
   final bool mine;
   final String time;
+  final DateTime? createdAt;
   _AutoDelete autoDelete = _AutoDelete.never;
+
+  factory _Msg.fromApi(ChatMessage m) {
+    final me = AuthSession.instance.userId;
+    return _Msg(
+      m.content?.trim().isNotEmpty == true ? m.content!.trim() : '(empty)',
+      id: m.id,
+      mine: m.senderId == me,
+      time: _formatBubbleTime(m.createdAt),
+      createdAt: m.createdAt,
+    );
+  }
 }
 
 /// Chat as an in-shell section. The conversation list and the open
@@ -67,96 +151,15 @@ class _ChatSectionState extends State<ChatSection>
   final _listSearchFocus = FocusNode();
   String _listQuery = '';
 
-  late final List<_Conversation> _conversations = [
-    _Conversation(
-      name: 'Maya Chen',
-      role: 'Innovation Lead',
-      preview: 'Ship it to the team build today?',
-      time: '2m',
-      unread: 2,
-      isOnline: true,
-      colors: const [Color(0xFF4C1D95), Color(0xFF7C3AED)],
-    ),
-    _Conversation(
-      name: 'Aarav Sharma',
-      role: 'Product Designer',
-      preview: 'The spring physics feel unreal.',
-      time: '28m',
-      unread: 1,
-      isOnline: true,
-      colors: const [Color(0xFF1E3A8A), Color(0xFF2563EB)],
-    ),
-    _Conversation(
-      name: 'Innovator Team',
-      role: 'Official',
-      preview: 'Welcome to the community!',
-      time: '1h',
-      unread: 5,
-      colors: const [Color(0xFF0F766E), Color(0xFF14B8A6)],
-    ),
-    _Conversation(
-      name: 'Rohan Karki',
-      role: 'Flutter Developer',
-      preview: 'Pushed the fix, check the branch.',
-      time: 'Tue',
-      colors: const [Color(0xFF92400E), Color(0xFFB45309)],
-    ),
-    _Conversation(
-      name: 'Priya Thapa',
-      role: 'Growth Marketer',
-      preview: 'Campaign numbers look great.',
-      time: 'Mon',
-      colors: const [Color(0xFF9F1239), Color(0xFFE11D48)],
-    ),
-  ];
-
-  /// People who recently followed you — shown as a circle rail.
-  static const _recentFollowers = [
-    _RailPerson('Sita Rai', [Color(0xFFBE185D), Color(0xFFF472B6)]),
-    _RailPerson('Nabin Gurung', [Color(0xFF0369A1), Color(0xFF38BDF8)]),
-    _RailPerson('Anisha Lama', [Color(0xFFB45309), Color(0xFFFBBF24)]),
-    _RailPerson('Kiran Basnet', [Color(0xFF047857), Color(0xFF34D399)]),
-    _RailPerson('Diya Shrestha', [Color(0xFF6D28D9), Color(0xFFA78BFA)]),
-  ];
-
-  final Map<String, List<_Msg>> _messages = {
-    'Maya Chen': [
-      _Msg(
-        'Hey! Did you try the new liquid nav bar?',
-        mine: false,
-        time: '10:02',
-      ),
-      _Msg(
-        'Just tried it — the drag feels amazing.',
-        mine: true,
-        time: '10:04',
-      ),
-      _Msg('Ship it to the team build today?', mine: false, time: '10:05'),
-    ],
-    'Aarav Sharma': [
-      _Msg('The spring physics feel unreal.', mine: false, time: '09:31'),
-    ],
-    'Innovator Team': [
-      _Msg('Welcome to the community!', mine: false, time: '08:12'),
-    ],
-    'Rohan Karki': [
-      _Msg('Pushed the fix, check the branch.', mine: false, time: 'Tue'),
-    ],
-    'Priya Thapa': [
-      _Msg('Campaign numbers look great.', mine: false, time: 'Mon'),
-    ],
-  };
-
-  static const _replies = [
-    'Love that — let’s do it.',
-    'On it, give me ten minutes.',
-    'That liquid feel is exactly what we wanted.',
-    'Perfect, shipping it now.',
-  ];
+  final _chatApi = ChatApi();
+  final List<_Conversation> _conversations = [];
+  final Map<String, List<_Msg>> _messages = {};
 
   _Conversation? _open;
-  bool _typing = false;
-  int _replyIndex = 0;
+  bool _loadingList = true;
+  bool _loadingThread = false;
+  bool _sending = false;
+  String? _listError;
   int _sendCount = 0;
 
   /// Pending auto-delete timers keyed by message id.
@@ -172,6 +175,49 @@ class _ChatSectionState extends State<ChatSection>
     vsync: this,
     duration: const Duration(milliseconds: 2600),
   )..repeat();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConversations();
+  }
+
+  Future<void> _loadConversations() async {
+    if (!AuthSession.instance.isSignedIn) {
+      setState(() {
+        _loadingList = false;
+        _listError = 'Sign in to load chats';
+        _conversations.clear();
+      });
+      return;
+    }
+    setState(() {
+      _loadingList = true;
+      _listError = null;
+    });
+    try {
+      final remote = await _chatApi.listConversations();
+      if (!mounted) return;
+      setState(() {
+        _conversations
+          ..clear()
+          ..addAll(remote.map(_Conversation.fromApi));
+        _loadingList = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingList = false;
+        _listError = e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingList = false;
+        _listError = 'Could not load chats';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -226,6 +272,14 @@ class _ChatSectionState extends State<ChatSection>
         list.removeWhere((m) => m.id == messageId);
       }
     });
+    // Best-effort remote delete (local already updated for snappy UI).
+    unawaited(() async {
+      try {
+        await _chatApi.deleteMessage(messageId);
+      } catch (_) {
+        if (mounted) _liquidToast('Could not delete on server');
+      }
+    }());
   }
 
   void _setAutoDelete(_Msg message, _AutoDelete mode) {
@@ -326,13 +380,38 @@ class _ChatSectionState extends State<ChatSection>
     );
   }
 
-  void _openConversation(_Conversation conversation) {
+  Future<void> _openConversation(_Conversation conversation) async {
     HapticFeedback.selectionClick();
     setState(() {
       _open = conversation;
       conversation.unread = 0;
-      _typing = false;
+      _loadingThread = true;
     });
+    try {
+      final remote = await _chatApi.listMessages(conversation.id);
+      unawaited(() async {
+        try {
+          await _chatApi.markRead(conversation.id);
+        } catch (_) {}
+      }());
+      if (!mounted || _open?.id != conversation.id) return;
+      final mapped = remote
+          .where((m) => !m.isDeleted)
+          .map(_Msg.fromApi)
+          .toList();
+      setState(() {
+        _messages[conversation.id] = mapped;
+        _loadingThread = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingThread = false);
+      _liquidToast(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingThread = false);
+      _liquidToast('Could not load messages');
+    }
   }
 
   void _closeConversation() {
@@ -340,38 +419,53 @@ class _ChatSectionState extends State<ChatSection>
     _composerFocus.unfocus();
     setState(() {
       _open = null;
-      _typing = false;
+      _loadingThread = false;
     });
+    unawaited(_loadConversations());
   }
 
-  void _deliverMessage(_Conversation open, String text) {
+  Future<void> _deliverMessage(_Conversation open, String text) async {
+    if (_sending) return;
     setState(() {
       _composer.clear();
+      _sending = true;
       _sendCount++;
-      _messages[open.name]!.add(_Msg(text, mine: true, time: 'now'));
     });
     HapticFeedback.mediumImpact();
 
-    // Peer starts typing, then a reply wells up.
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted || _open != open) return;
-      setState(() => _typing = true);
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        if (!mounted || _open != open) return;
-        setState(() {
-          _typing = false;
-          _messages[open.name]!.add(
-            _Msg(
-              _replies[_replyIndex % _replies.length],
-              mine: false,
-              time: 'now',
-            ),
+    try {
+      final sent = await _chatApi.sendMessage(open.id, content: text);
+      if (!mounted || _open?.id != open.id) return;
+      final msg = _Msg.fromApi(sent);
+      setState(() {
+        final list = _messages.putIfAbsent(open.id, () => <_Msg>[]);
+        list.add(msg);
+        _sending = false;
+        final idx = _conversations.indexWhere((c) => c.id == open.id);
+        if (idx >= 0) {
+          _conversations[idx] = _Conversation(
+            id: open.id,
+            name: open.name,
+            role: open.role,
+            preview: text,
+            time: 'now',
+            colors: open.colors,
+            peerUserId: open.peerUserId,
+            unread: 0,
+            isOnline: open.isOnline,
           );
-          _replyIndex++;
-        });
-        HapticFeedback.selectionClick();
+          if (_open?.id == open.id) _open = _conversations[idx];
+        }
       });
-    });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      _liquidToast(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      _liquidToast('Could not send message');
+    }
   }
 
   void _send() {
@@ -381,7 +475,7 @@ class _ChatSectionState extends State<ChatSection>
       HapticFeedback.selectionClick();
       return;
     }
-    _deliverMessage(open, text);
+    unawaited(_deliverMessage(open, text));
   }
 
   @override
@@ -409,106 +503,254 @@ class _ChatSectionState extends State<ChatSection>
   Widget _buildList() {
     final padding = widget.contentPadding;
     final chats = _filteredConversations;
-    return ListView(
-      key: const ValueKey('conversations'),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: EdgeInsets.fromLTRB(20, padding.top + 8, 20, padding.bottom + 6),
-      children: [
-        _stagger(
-          index: 0,
-          child: _ChatListSearchBar(
-            controller: _listSearch,
-            focusNode: _listSearchFocus,
-            wave: _wave,
-            onChanged: (value) => setState(() => _listQuery = value.trim()),
-            onClear: () {
-              _listSearch.clear();
-              _listSearchFocus.requestFocus();
-              setState(() => _listQuery = '');
-            },
-          ),
+    return RefreshIndicator(
+      color: BrandColors.secondarySurface,
+      onRefresh: _loadConversations,
+      child: ListView(
+        key: const ValueKey('conversations'),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: ClampingScrollPhysics(),
         ),
-        const SizedBox(height: 18),
-        _stagger(
-          index: 1,
-          child: _AvatarRail(
-            title: 'Recent',
-            wave: _wave,
-            people: [
-              for (final c in _recentChats)
-                _RailPerson(c.name, c.colors, isOnline: c.isOnline),
-              ..._recentFollowers,
-            ],
-            onTapName: (name) {
-              final match = _conversations.where((c) => c.name == name);
-              if (match.isNotEmpty) {
-                _openConversation(match.first);
-              } else {
-                HapticFeedback.selectionClick();
-                _liquidToast('Say hi to $name');
-              }
-            },
-          ),
-        ),
-        const SizedBox(height: 18),
-        _stagger(
-          index: 2,
-          child: AnimatedBuilder(
-            animation: _wave,
-            builder: (context, child) => Transform.translate(
-              offset: Offset(0, sin(_wave.value * 2 * pi + 1.4) * 2),
-              child: child,
-            ),
-            child: const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Messages',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: _ink,
-                  letterSpacing: -.1,
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        if (chats.isEmpty)
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding:
+            EdgeInsets.fromLTRB(20, padding.top + 8, 20, padding.bottom + 6),
+        children: [
           _stagger(
-            index: 3,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 28),
+            index: 0,
+            child: _ChatListSearchBar(
+              controller: _listSearch,
+              focusNode: _listSearchFocus,
+              wave: _wave,
+              onChanged: (value) => setState(() => _listQuery = value.trim()),
+              onClear: () {
+                _listSearch.clear();
+                _listSearchFocus.requestFocus();
+                setState(() => _listQuery = '');
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+          _stagger(
+            index: 1,
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Messages',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                      letterSpacing: -.1,
+                    ),
+                  ),
+                ),
+                LiquidPressable(
+                  onTap: _showNewChatSheet,
+                  borderRadius: BorderRadius.circular(999),
+                  rippleColor: _ink,
+                  intensity: .7,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: BrandColors.secondarySurface.withValues(alpha: .92),
+                    ),
+                    child: const Text(
+                      'New chat',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (_loadingList)
+            const Padding(
+              padding: EdgeInsets.only(top: 48),
               child: Center(
-                child: Text(
-                  'No chats for “$_listQuery”',
-                  style: const TextStyle(fontSize: 13, color: _muted),
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            )
+          else if (_listError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 36),
+              child: Column(
+                children: [
+                  Text(
+                    _listError!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13.5, color: _muted),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _loadConversations,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          else if (chats.isEmpty)
+            _stagger(
+              index: 2,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 36),
+                child: Center(
+                  child: Text(
+                    _listQuery.isEmpty
+                        ? 'No conversations yet.\nTap New chat to start.'
+                        : 'No chats for “$_listQuery”',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13, color: _muted),
+                  ),
                 ),
               ),
-            ),
-          )
-        else
-          for (var i = 0; i < chats.length; i++)
-            _stagger(
-              index: 3 + i,
-              child: _ConversationTile(
-                conversation: chats[i],
-                wave: _wave,
-                phaseShift: i * .9,
-                onTap: () => _openConversation(chats[i]),
+            )
+          else ...[
+            if (_recentChats.isNotEmpty) ...[
+              _stagger(
+                index: 2,
+                child: _AvatarRail(
+                  title: 'Recent',
+                  wave: _wave,
+                  people: [
+                    for (final c in _recentChats)
+                      _RailPerson(c.name, c.colors, isOnline: c.isOnline),
+                  ],
+                  onTapName: (name) {
+                    final match = _conversations.where((c) => c.name == name);
+                    if (match.isNotEmpty) _openConversation(match.first);
+                  },
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+            for (var i = 0; i < chats.length; i++)
+              _stagger(
+                index: 3 + i,
+                child: _ConversationTile(
+                  conversation: chats[i],
+                  wave: _wave,
+                  phaseShift: i * .9,
+                  onTap: () => _openConversation(chats[i]),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showNewChatSheet() async {
+    HapticFeedback.selectionClick();
+    final usernameCtrl = TextEditingController();
+    final userIdCtrl = TextEditingController();
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
+          ),
+          child: Material(
+            color: Colors.white.withValues(alpha: .94),
+            borderRadius: BorderRadius.circular(22),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Start a chat',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Enter the peer’s auth user ID (UUID) and optional username.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: _ink.withValues(alpha: .5),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: userIdCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'User ID (required)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: usernameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Username (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: BrandColors.secondarySurface,
+                    ),
+                    child: const Text('Create'),
+                  ),
+                ],
               ),
             ),
-      ],
+          ),
+        );
+      },
     );
+    final userId = userIdCtrl.text.trim();
+    final username = usernameCtrl.text.trim();
+    usernameCtrl.dispose();
+    userIdCtrl.dispose();
+    if (created != true || userId.isEmpty) return;
+
+    try {
+      final conv = await _chatApi.createConversation(
+        participantUserId: userId,
+        participantUsername: username.isEmpty ? null : username,
+      );
+      if (!mounted) return;
+      final local = _Conversation.fromApi(conv);
+      setState(() {
+        _conversations.removeWhere((c) => c.id == local.id);
+        _conversations.insert(0, local);
+        _messages[local.id] = [];
+      });
+      await _openConversation(local);
+    } on ApiException catch (e) {
+      if (mounted) _liquidToast(e.message);
+    } catch (_) {
+      if (mounted) _liquidToast('Could not create chat');
+    }
   }
 
   // ---------------------------------------------------------------- thread
 
   Widget _buildThread(_Conversation conversation) {
     final padding = widget.contentPadding;
-    final messages = _messages[conversation.name]!;
+    final messages = _messages[conversation.id] ?? const <_Msg>[];
     return Padding(
-      key: ValueKey('thread-${conversation.name}'),
+      key: ValueKey('thread-${conversation.id}'),
       padding: EdgeInsets.fromLTRB(20, padding.top + 8, 20, padding.bottom + 6),
       child: Column(
         children: [
@@ -516,46 +758,74 @@ class _ChatSectionState extends State<ChatSection>
             conversation: conversation,
             wave: _wave,
             onBack: _closeConversation,
-            onMore: (anchor) {
-              final list = _messages[conversation.name];
-              if (list == null || list.isEmpty) {
-                HapticFeedback.selectionClick();
-                _liquidToast('No messages yet');
-                return;
-              }
-              _openMessageMenu(list.last, anchor);
+            onMore: (anchor) async {
+              HapticFeedback.selectionClick();
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Delete conversation?'),
+                  content: const Text(
+                    'This removes the chat from your list on the server.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) await _deleteConversation(conversation);
             },
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: ListView.builder(
-              reverse: true,
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              itemCount: messages.length + (_typing ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (_typing && index == 0) {
-                  return Align(
-                    alignment: Alignment.centerLeft,
-                    child: _TypingBubble(wave: _wave),
-                  );
-                }
-                final messageIndex =
-                    messages.length - 1 - (index - (_typing ? 1 : 0));
-                final message = messages[messageIndex];
-                return _Bubble(
-                  key: ValueKey(message.id),
-                  message: message,
-                  wave: _wave,
-                  onMore: (anchor) => _openMessageMenu(message, anchor),
-                );
-              },
-            ),
+            child: _loadingThread
+                ? const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  )
+                : ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final messageIndex = messages.length - 1 - index;
+                      final message = messages[messageIndex];
+                      return _Bubble(
+                        key: ValueKey(message.id),
+                        message: message,
+                        wave: _wave,
+                        onMore: (anchor) => _openMessageMenu(message, anchor),
+                      );
+                    },
+                  ),
           ),
           const SizedBox(height: 10),
           _buildComposer(),
         ],
       ),
     );
+  }
+
+  Future<void> _deleteConversation(_Conversation conversation) async {
+    try {
+      await _chatApi.deleteConversation(conversation.id);
+      if (!mounted) return;
+      setState(() {
+        _conversations.removeWhere((c) => c.id == conversation.id);
+        _messages.remove(conversation.id);
+        if (_open?.id == conversation.id) _open = null;
+      });
+      _liquidToast('Conversation deleted');
+    } on ApiException catch (e) {
+      if (mounted) _liquidToast(e.message);
+    } catch (_) {
+      if (mounted) _liquidToast('Could not delete conversation');
+    }
   }
 
   Widget _buildComposer() {
@@ -1604,62 +1874,6 @@ class _Bubble extends StatelessWidget {
               ),
               if (!mine) ...[const SizedBox(width: 6), moreButton],
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ------------------------------------------------------------ typing dots
-
-/// Three droplets bobbing in sequence while the peer types.
-class _TypingBubble extends StatelessWidget {
-  const _TypingBubble({required this.wave});
-
-  final AnimationController wave;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              color: Colors.white.withValues(alpha: .6),
-              border: Border.all(color: Colors.white.withValues(alpha: .9)),
-            ),
-            child: AnimatedBuilder(
-              animation: wave,
-              builder: (context, _) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var i = 0; i < 3; i++)
-                    Padding(
-                      padding: EdgeInsets.only(right: i == 2 ? 0 : 5),
-                      child: Transform.translate(
-                        offset: Offset(
-                          0,
-                          sin((wave.value * 2 * pi * 2) - i * .9) * 2.6,
-                        ),
-                        child: Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _ink.withValues(alpha: .45),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
           ),
         ),
       ),

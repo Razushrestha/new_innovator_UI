@@ -11,6 +11,8 @@ import 'post_page.dart';
 import 'privacy_policy_page.dart';
 import 'profile_page.dart';
 import 'search_section.dart';
+import 'services/auth_api.dart';
+import 'services/auth_session.dart';
 import 'shop_page.dart';
 import 'widgets/animated_blob_background.dart';
 import 'widgets/glass_drawer.dart';
@@ -64,7 +66,9 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  void _logout() {
+  Future<void> _logout() async {
+    await AuthApi().logout();
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 450),
@@ -193,7 +197,11 @@ class _DashboardPageState extends State<DashboardPage> {
   };
 
   String get _displayName {
-    final rawName = widget.email.split('@').first;
+    final session = AuthSession.instance;
+    final username = session.username?.trim();
+    if (username != null && username.isNotEmpty) return username;
+    final email = (session.email ?? widget.email).trim();
+    final rawName = email.split('@').first;
     return rawName.isEmpty
         ? 'Innovator'
         : rawName[0].toUpperCase() + rawName.substring(1);
@@ -313,6 +321,8 @@ class _DashboardPageState extends State<DashboardPage> {
                         ? ProfileSection(
                             key: const ValueKey('profile'),
                             name: _displayName,
+                            authUserId: AuthSession.instance.userId,
+                            username: AuthSession.instance.username,
                             contentPadding: _feedPadding,
                           )
                         : _showCart

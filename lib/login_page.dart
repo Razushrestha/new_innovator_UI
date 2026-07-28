@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'theme/brand_colors.dart';
 
 import 'dashboard_page.dart';
+import 'models/api_response.dart';
+import 'services/auth_api.dart';
+import 'services/auth_session.dart';
 import 'signup_page.dart';
 import 'widgets/animated_blob_background.dart';
 import 'widgets/glass_card.dart';
@@ -38,28 +41,69 @@ class _LoginPageState extends State<LoginPage>
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authApi = AuthApi();
+  bool _busy = false;
 
-  // Auth is bypassed for now: any (or no) credentials go straight to the
-  // dashboard. Wire a real backend here later.
-  void _enterApp({String? email}) {
-    final typed = _emailController.text.trim();
-    final resolved = (email ?? typed).isEmpty
-        ? 'demo@innovator.com'
-        : (email ?? typed);
+  Future<void> _enterDashboard() async {
+    final email = AuthSession.instance.email ??
+        _emailController.text.trim().ifEmpty('demo@innovator.com');
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 450),
         pageBuilder: (_, animation, __) => FadeTransition(
           opacity: animation,
-          child: DashboardPage(email: resolved),
+          child: DashboardPage(email: email),
         ),
       ),
     );
   }
 
-  void _signIn() => _enterApp();
+  Future<void> _signIn() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      _toast('Enter email and password');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await _authApi.login(email: email, password: password);
+      await _enterDashboard();
+    } on ApiException catch (e) {
+      if (mounted) _toast(e.message);
+    } catch (_) {
+      if (mounted) _toast('Could not sign in');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
-  void _signInWithGoogle() => _enterApp(email: 'google@innovator.com');
+  Future<void> _signInWithGoogle() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await _authApi.loginWithGoogle();
+      await _enterDashboard();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.message.toLowerCase().contains('canceled')) return;
+      _toast(e.message);
+    } catch (_) {
+      if (mounted) _toast('Could not sign in with Google');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(message),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -79,7 +123,8 @@ class _LoginPageState extends State<LoginPage>
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 child: FadeTransition(
                   opacity: _fade,
                   child: SlideTransition(
@@ -147,21 +192,28 @@ class _LoginPageState extends State<LoginPage>
                             ),
                           ),
                           const SizedBox(height: 8),
-                          LiquidButton(
-                            label: 'Sign In',
-                            dense: true,
-                            onTap: _signIn,
-                          ),
-                          const SizedBox(height: 8),
-                          const _OrDivider(),
-                          const SizedBox(height: 8),
-                          LiquidButton(
-                            label: 'Continue with Google',
-                            dark: false,
-                            dense: true,
-                            leading: const GoogleLogo(),
-                            onTap: _signInWithGoogle,
-                          ),
+                          if (_busy)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 14),
+                              child: CircularProgressIndicator(strokeWidth: 2.4),
+                            )
+                          else ...[
+                            LiquidButton(
+                              label: 'Sign In',
+                              dense: true,
+                              onTap: _signIn,
+                            ),
+                            const SizedBox(height: 8),
+                            const _OrDivider(),
+                            const SizedBox(height: 8),
+                            LiquidButton(
+                              label: 'Continue with Google',
+                              dark: false,
+                              dense: true,
+                              leading: const GoogleLogo(),
+                              onTap: _signInWithGoogle,
+                            ),
+                          ],
                           const SizedBox(height: 10),
                           Wrap(
                             alignment: WrapAlignment.center,
@@ -219,6 +271,10 @@ class _LoginPageState extends State<LoginPage>
       ),
     );
   }
+}
+
+extension on String {
+  String ifEmpty(String fallback) => isEmpty ? fallback : this;
 }
 
 class _OrDivider extends StatelessWidget {

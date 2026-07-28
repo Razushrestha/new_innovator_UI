@@ -1,85 +1,28 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
-import 'shop_models.dart';
+import 'models/api_response.dart';
+import 'models/search_models.dart';
+import 'profile_page.dart';
+import 'services/search_api.dart';
+import 'theme/brand_colors.dart';
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
 const _ink = BrandColors.ink;
 const _muted = BrandColors.muted;
 
-/// One row in the global search index: people from the feed and every
-/// product from the shop catalog.
-class _SearchEntry {
-  const _SearchEntry({
-    required this.title,
-    required this.subtitle,
-    required this.kind,
-    this.icon,
-    this.tint,
-  });
-
-  final String title;
-  final String subtitle;
-  final String kind; // 'Person' | 'Product'
-  final IconData? icon; // products only; people get an initial avatar
-  final Color? tint;
-
-  bool matches(String query) =>
-      title.toLowerCase().contains(query) ||
-      subtitle.toLowerCase().contains(query);
-}
-
-final _entries = <_SearchEntry>[
-  const _SearchEntry(
-    title: 'Aarav Sharma',
-    subtitle: 'Product Designer',
-    kind: 'Person',
-  ),
-  const _SearchEntry(
-    title: 'Maya Chen',
-    subtitle: 'Innovation Lead',
-    kind: 'Person',
-  ),
-  const _SearchEntry(
-    title: 'Innovator Team',
-    subtitle: 'Official',
-    kind: 'Person',
-  ),
-  const _SearchEntry(
-    title: 'Rohan Karki',
-    subtitle: 'Flutter Developer',
-    kind: 'Person',
-  ),
-  const _SearchEntry(
-    title: 'Priya Thapa',
-    subtitle: 'Growth Marketer',
-    kind: 'Person',
-  ),
-  for (final product in kShopProducts)
-    _SearchEntry(
-      title: product.name,
-      subtitle: '${product.category} · ${formatRs(product.price)}',
-      kind: 'Product',
-      icon: product.icon,
-      tint: product.tint,
-    ),
-];
-
-const _trending = ['Design', 'Course', 'Template', 'Aarav', 'Marketing'];
-
-/// In-shell search: the bar starts as a small glass droplet (the search
-/// icon that was just tapped) and elastically elongates into a full
-/// pill; results well up right beneath it as you type, each landing
-/// with its own liquid pop.
+/// In-shell search wired to http://36.253.137.34:8015
+///
+/// Idle: suggested users + recent history.
+/// Typing: combined search (people, posts, hashtags) with debounce.
 class SearchSection extends StatefulWidget {
   const SearchSection({super.key, this.contentPadding = EdgeInsets.zero});
 
-  /// Clearances from the shell so content stays clear of the docked bar.
   final EdgeInsets contentPadding;
 
   @override
@@ -90,15 +33,24 @@ class _SearchSectionState extends State<SearchSection>
     with TickerProviderStateMixin {
   final _controller = TextEditingController();
   final _focus = FocusNode();
-  String _query = '';
+  final _searchApi = SearchApi();
 
-  /// Drives the droplet-to-pill elongation.
+  String _query = '';
+  bool _loading = false;
+  bool _bootLoading = true;
+  String? _error;
+
+  CombinedSearchResult _results = const CombinedSearchResult();
+  List<SearchUserHit> _suggested = const [];
+  List<SearchHistoryItem> _history = const [];
+
+  Timer? _debounce;
+
   late final AnimationController _stretch = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 800),
   )..forward();
 
-  /// Continuous phase for the liquid resting inside the bar and tiles.
   late final AnimationController _wave = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2600),
@@ -107,7 +59,7 @@ class _SearchSectionState extends State<SearchSection>
   @override
   void initState() {
     super.initState();
-    // Invite typing once the pill has (mostly) finished stretching.
+    _loadIdle();
     Future.delayed(const Duration(milliseconds: 450), () {
       if (mounted) _focus.requestFocus();
     });
@@ -115,6 +67,7 @@ class _SearchSectionState extends State<SearchSection>
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     _focus.dispose();
     _stretch.dispose();
@@ -122,29 +75,165 @@ class _SearchSectionState extends State<SearchSection>
     super.dispose();
   }
 
-  void _setQuery(String value) => setState(() => _query = value.trim());
+  Future<void> _loadIdle() async {
+    setState(() {
+      _bootLoading = true;
+      _error = null;
+    });
+    try {
+      final suggested = await _searchApi.suggestedUsers();
+      final history = await _searchApi.history();
+      if (!mounted) return;
+      setState(() {
+        _suggested = suggested;
+        _history = history;
+        _bootLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _bootLoading = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _bootLoading = false;
+        _error = 'Could not load search';
+      });
+    }
+  }
 
-  void _useTrending(String term) {
+  void _onQueryChanged(String value) {
+    final trimmed = value.trim();
+    setState(() => _query = trimmed);
+    _debounce?.cancel();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _results = const CombinedSearchResult();
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 320), () {
+      _runSearch(trimmed);
+    });
+  }
+
+  Future<void> _runSearch(String q) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final combined = await _searchApi.search(q: q, type: 'all');
+      // Merge dedicated endpoints when combined sections are empty.
+      var users = combined.users;
+      var posts = combined.posts;
+      var hashtags = combined.hashtags;
+      if (users.isEmpty) {
+        try {
+          users = await _searchApi.searchUsers(q);
+        } catch (_) {}
+      }
+      if (posts.isEmpty) {
+        try {
+          posts = await _searchApi.searchPosts(q);
+        } catch (_) {}
+      }
+      if (hashtags.isEmpty) {
+        try {
+          hashtags = await _searchApi.searchHashtags(q);
+        } catch (_) {}
+      }
+      if (!mounted || _query != q) return;
+      setState(() {
+        _results = CombinedSearchResult(
+          users: users,
+          posts: posts,
+          hashtags: hashtags,
+          totalUsers: combined.totalUsers > 0
+              ? combined.totalUsers
+              : users.length,
+          totalPosts: combined.totalPosts > 0
+              ? combined.totalPosts
+              : posts.length,
+        );
+        _loading = false;
+      });
+      // Refresh history after a search is recorded server-side.
+      unawaited(_refreshHistoryQuiet());
+    } on ApiException catch (e) {
+      if (!mounted || _query != q) return;
+      setState(() {
+        _loading = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted || _query != q) return;
+      setState(() {
+        _loading = false;
+        _error = 'Search failed';
+      });
+    }
+  }
+
+  Future<void> _refreshHistoryQuiet() async {
+    try {
+      final history = await _searchApi.history();
+      if (mounted) setState(() => _history = history);
+    } catch (_) {}
+  }
+
+  void _useTerm(String term) {
     HapticFeedback.selectionClick();
     _controller.text = term;
     _controller.selection = TextSelection.collapsed(
       offset: _controller.text.length,
     );
     _focus.requestFocus();
-    _setQuery(term);
+    _onQueryChanged(term);
   }
 
   void _clear() {
     HapticFeedback.selectionClick();
+    _debounce?.cancel();
     _controller.clear();
     _focus.requestFocus();
-    _setQuery('');
+    setState(() {
+      _query = '';
+      _results = const CombinedSearchResult();
+      _loading = false;
+      _error = null;
+    });
   }
 
-  List<_SearchEntry> get _results {
-    final query = _query.toLowerCase();
-    if (query.isEmpty) return const [];
-    return _entries.where((entry) => entry.matches(query)).toList();
+  Future<void> _clearHistory() async {
+    HapticFeedback.mediumImpact();
+    try {
+      await _searchApi.clearHistory();
+      if (mounted) setState(() => _history = const []);
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(behavior: SnackBarBehavior.floating, content: Text(e.message)),
+        );
+      }
+    }
+  }
+
+  void _openUser(SearchUserHit user) {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AuthorProfilePage(
+          name: user.displayName,
+          authUserId: user.id,
+          username: user.username,
+        ),
+      ),
+    );
   }
 
   @override
@@ -175,25 +264,74 @@ class _SearchSectionState extends State<SearchSection>
               child: child,
             ),
           ),
-          child: _query.isEmpty
-              ? _buildTrending()
-              : _results.isEmpty
-              ? _buildNoResults()
-              : _buildResults(),
+          child: _buildBody(),
         ),
       ],
     );
   }
 
-  // ------------------------------------------------------------------ bar
+  Widget _buildBody() {
+    if (_query.isEmpty) {
+      if (_bootLoading) {
+        return const Padding(
+          key: ValueKey('boot'),
+          padding: EdgeInsets.only(top: 40),
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
+        );
+      }
+      if (_error != null && _suggested.isEmpty && _history.isEmpty) {
+        return _ErrorBlock(
+          key: const ValueKey('idle-error'),
+          message: _error!,
+          onRetry: _loadIdle,
+        );
+      }
+      return _IdlePanel(
+        key: const ValueKey('idle'),
+        suggested: _suggested,
+        history: _history,
+        wave: _wave,
+        onUser: _openUser,
+        onHistory: _useTerm,
+        onClearHistory: _history.isEmpty ? null : _clearHistory,
+      );
+    }
+
+    if (_loading && _results.totalCount == 0) {
+      return const Padding(
+        key: ValueKey('loading'),
+        padding: EdgeInsets.only(top: 40),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
+      );
+    }
+
+    if (_error != null && _results.totalCount == 0) {
+      return _ErrorBlock(
+        key: const ValueKey('search-error'),
+        message: _error!,
+        onRetry: () => _runSearch(_query),
+      );
+    }
+
+    if (_results.totalCount == 0) {
+      return _NoResults(key: const ValueKey('empty'), query: _query, wave: _wave);
+    }
+
+    return _ResultsPanel(
+      key: ValueKey('results-$_query'),
+      query: _query,
+      results: _results,
+      loading: _loading,
+      onUser: _openUser,
+      onHashtag: _useTerm,
+    );
+  }
 
   Widget _buildBar() {
     return LayoutBuilder(
       builder: (context, constraints) => AnimatedBuilder(
         animation: Listenable.merge([_stretch, _wave, _focus]),
         builder: (context, _) {
-          // Overshooting ease: the droplet stretches past full width and
-          // snaps back, like liquid finding its shape.
           final t = Curves.easeOutBack.transform(_stretch.value);
           final width = lerpDouble(
             56,
@@ -237,8 +375,6 @@ class _SearchSectionState extends State<SearchSection>
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      // Liquid pooled at the bottom of the pill; it rises
-                      // slightly while the field is focused.
                       CustomPaint(
                         painter: WaveFillPainter(
                           phase: phase,
@@ -264,8 +400,13 @@ class _SearchSectionState extends State<SearchSection>
                               child: TextField(
                                 controller: _controller,
                                 focusNode: _focus,
-                                onChanged: _setQuery,
+                                onChanged: _onQueryChanged,
                                 textInputAction: TextInputAction.search,
+                                onSubmitted: (v) {
+                                  _debounce?.cancel();
+                                  final q = v.trim();
+                                  if (q.isNotEmpty) _runSearch(q);
+                                },
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w500,
@@ -275,7 +416,7 @@ class _SearchSectionState extends State<SearchSection>
                                 decoration: const InputDecoration(
                                   isCollapsed: true,
                                   border: InputBorder.none,
-                                  hintText: 'Search people, products…',
+                                  hintText: 'Search people, posts, hashtags…',
                                   hintStyle: TextStyle(
                                     fontSize: 14.5,
                                     color: _muted,
@@ -305,18 +446,14 @@ class _SearchSectionState extends State<SearchSection>
                                       begin: Alignment.topCenter,
                                       end: Alignment.bottomCenter,
                                       colors: [
-                                        const Color(
-                                          0xFF2A2F3E,
-                                        ).withValues(alpha: .95),
-                                        const Color(
-                                          0xFF15181F,
-                                        ).withValues(alpha: .9),
+                                        const Color(0xFF2A2F3E)
+                                            .withValues(alpha: .95),
+                                        const Color(0xFF15181F)
+                                            .withValues(alpha: .9),
                                       ],
                                     ),
                                     border: Border.all(
-                                      color: Colors.white.withValues(
-                                        alpha: .35,
-                                      ),
+                                      color: Colors.white.withValues(alpha: .35),
                                     ),
                                   ),
                                   child: const Icon(
@@ -340,142 +477,522 @@ class _SearchSectionState extends State<SearchSection>
       ),
     );
   }
+}
 
-  // ------------------------------------------------------------- trending
+// ------------------------------------------------------------------ idle
 
-  Widget _buildTrending() {
+class _IdlePanel extends StatelessWidget {
+  const _IdlePanel({
+    super.key,
+    required this.suggested,
+    required this.history,
+    required this.wave,
+    required this.onUser,
+    required this.onHistory,
+    this.onClearHistory,
+  });
+
+  final List<SearchUserHit> suggested;
+  final List<SearchHistoryItem> history;
+  final AnimationController wave;
+  final ValueChanged<SearchUserHit> onUser;
+  final ValueChanged<String> onHistory;
+  final VoidCallback? onClearHistory;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
-      key: const ValueKey('trending'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AnimatedBuilder(
-          animation: _wave,
-          builder: (context, child) => Transform.translate(
-            offset: Offset(0, sin(_wave.value * 2 * pi) * 2.2),
-            child: child,
-          ),
-          child: const Center(
-            child: Text(
-              'Trending',
-              style: TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w700,
-                color: _ink,
-                letterSpacing: -.2,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (var i = 0; i < _trending.length; i++)
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: 1),
-                duration: Duration(milliseconds: 480 + i * 90),
-                curve: Curves.easeOutBack,
-                builder: (context, t, child) => Transform.scale(
-                  scale: t.clamp(0, 1.15),
-                  child: Opacity(opacity: t.clamp(0, 1), child: child),
-                ),
-                child: LiquidPressable(
-                  onTap: () => _useTrending(_trending[i]),
-                  borderRadius: BorderRadius.circular(20),
-                  rippleColor: _ink,
-                  intensity: .6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 9,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      color: Colors.white.withValues(alpha: .5),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: .9),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.trending_up_rounded,
-                          size: 14,
-                          color: _ink.withValues(alpha: .55),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _trending[i],
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: _ink.withValues(alpha: .75),
-                          ),
-                        ),
-                      ],
-                    ),
+        if (history.isNotEmpty) ...[
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Recent',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                    letterSpacing: -.2,
                   ),
                 ),
               ),
-          ],
+              if (onClearHistory != null)
+                TextButton(
+                  onPressed: onClearHistory,
+                  style: TextButton.styleFrom(
+                    foregroundColor: _muted,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('Clear', style: TextStyle(fontSize: 12.5)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final item in history.take(8))
+                _Chip(
+                  label: item.query,
+                  icon: Icons.history_rounded,
+                  onTap: () => onHistory(item.query),
+                ),
+            ],
+          ),
+          const SizedBox(height: 22),
+        ],
+        AnimatedBuilder(
+          animation: wave,
+          builder: (context, child) => Transform.translate(
+            offset: Offset(0, sin(wave.value * 2 * pi) * 2.2),
+            child: child,
+          ),
+          child: const Text(
+            'Suggested for you',
+            style: TextStyle(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w700,
+              color: _ink,
+              letterSpacing: -.2,
+            ),
+          ),
         ),
+        const SizedBox(height: 12),
+        if (suggested.isEmpty)
+          const Text(
+            'No suggestions yet — follow people to improve this list.',
+            style: TextStyle(fontSize: 12.5, color: _muted),
+          )
+        else
+          for (var i = 0; i < suggested.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _UserTile(
+              user: suggested[i],
+              query: '',
+              subtitleOverride: suggested[i].reason ??
+                  (suggested[i].bio?.trim().isNotEmpty == true
+                      ? suggested[i].bio
+                      : null),
+              onTap: () => onUser(suggested[i]),
+            ),
+          ],
       ],
     );
   }
+}
 
-  // -------------------------------------------------------------- results
+// --------------------------------------------------------------- results
 
-  Widget _buildResults() {
-    final results = _results;
+class _ResultsPanel extends StatelessWidget {
+  const _ResultsPanel({
+    super.key,
+    required this.query,
+    required this.results,
+    required this.loading,
+    required this.onUser,
+    required this.onHashtag,
+  });
+
+  final String query;
+  final CombinedSearchResult results;
+  final bool loading;
+  final ValueChanged<SearchUserHit> onUser;
+  final ValueChanged<String> onHashtag;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = results.totalCount;
     return Column(
-      key: ValueKey('results-$_query'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 6, bottom: 10),
-          child: Text(
-            '${results.length} result${results.length == 1 ? '' : 's'}',
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: _muted,
-              letterSpacing: .2,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$count result${count == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _muted,
+                    letterSpacing: .2,
+                  ),
+                ),
+              ),
+              if (loading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
           ),
         ),
-        for (var i = 0; i < results.length; i++)
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: 1),
-            duration: Duration(milliseconds: 420 + i * 70),
-            curve: Curves.easeOutBack,
-            builder: (context, t, child) => Transform.translate(
-              offset: Offset(0, 14 * (1 - t.clamp(0, 1))),
-              child: Transform.scale(
-                scale: (0.94 + .06 * t).clamp(0, 1.06),
-                child: Opacity(opacity: t.clamp(0, 1), child: child),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _ResultTile(entry: results[i], query: _query),
-            ),
+        if (results.users.isNotEmpty) ...[
+          const _SectionLabel('People'),
+          const SizedBox(height: 8),
+          for (final user in results.users) ...[
+            _UserTile(user: user, query: query, onTap: () => onUser(user)),
+            const SizedBox(height: 10),
+          ],
+          const SizedBox(height: 8),
+        ],
+        if (results.hashtags.isNotEmpty) ...[
+          const _SectionLabel('Hashtags'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final tag in results.hashtags)
+                _Chip(
+                  label: tag.startsWith('#') ? tag : '#$tag',
+                  icon: Icons.tag_rounded,
+                  onTap: () => onHashtag(tag.replaceFirst('#', '')),
+                ),
+            ],
           ),
+          const SizedBox(height: 16),
+        ],
+        if (results.posts.isNotEmpty) ...[
+          const _SectionLabel('Posts'),
+          const SizedBox(height: 8),
+          for (final post in results.posts) ...[
+            _PostTile(post: post, query: query, onAuthor: () {
+              if (post.authorId.isEmpty) return;
+              onUser(
+                SearchUserHit(
+                  id: post.authorId,
+                  username: post.username,
+                  avatar: post.avatar,
+                ),
+              );
+            }),
+            const SizedBox(height: 10),
+          ],
+        ],
       ],
     );
   }
+}
 
-  Widget _buildNoResults() {
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      key: const ValueKey('empty'),
+      padding: const EdgeInsets.only(left: 6),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: _muted,
+          letterSpacing: .3,
+        ),
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LiquidPressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      rippleColor: _ink,
+      intensity: .6,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Colors.white.withValues(alpha: .5),
+          border: Border.all(color: Colors.white.withValues(alpha: .9)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: _ink.withValues(alpha: .55)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: _ink.withValues(alpha: .75),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UserTile extends StatelessWidget {
+  const _UserTile({
+    required this.user,
+    required this.query,
+    required this.onTap,
+    this.subtitleOverride,
+  });
+
+  final SearchUserHit user;
+  final String query;
+  final VoidCallback onTap;
+  final String? subtitleOverride;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = subtitleOverride?.trim().isNotEmpty == true
+        ? subtitleOverride!.trim()
+        : [
+            if (user.username != null && user.username!.isNotEmpty)
+              '@${user.username}',
+            if (user.bio != null && user.bio!.trim().isNotEmpty) user.bio!.trim(),
+          ].join(' · ');
+
+    return _GlassTile(
+      onTap: onTap,
+      leading: _Avatar(name: user.displayName, url: user.avatar),
+      title: _highlight(user.displayName, query),
+      subtitle: subtitle.isEmpty ? 'Innovator' : subtitle,
+      trailing: user.isFollowing
+          ? Text(
+              'Following',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _ink.withValues(alpha: .45),
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+class _PostTile extends StatelessWidget {
+  const _PostTile({
+    required this.post,
+    required this.query,
+    required this.onAuthor,
+  });
+
+  final SearchPostHit post;
+  final String query;
+  final VoidCallback onAuthor;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = (post.content ?? '').trim();
+    final meta = [
+      if (post.username != null && post.username!.isNotEmpty)
+        '@${post.username}',
+      '${post.reactionsCount} reactions',
+      '${post.commentsCount} comments',
+    ].join(' · ');
+
+    return _GlassTile(
+      onTap: onAuthor,
+      leading: _Avatar(name: post.username ?? 'P', url: post.avatar),
+      title: _highlight(
+        content.isEmpty ? '(No caption)' : content,
+        query,
+        maxLines: 2,
+      ),
+      subtitle: meta,
+    );
+  }
+}
+
+class _GlassTile extends StatelessWidget {
+  const _GlassTile({
+    required this.onTap,
+    required this.leading,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+  });
+
+  final VoidCallback onTap;
+  final Widget leading;
+  final InlineSpan title;
+  final String subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return LiquidPressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      rippleColor: _ink,
+      intensity: .6,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: .62),
+                  Colors.white.withValues(alpha: .36),
+                ],
+              ),
+              border: Border.all(color: Colors.white.withValues(alpha: .92)),
+            ),
+            child: Row(
+              children: [
+                leading,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text.rich(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _ink.withValues(alpha: .48),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  trailing!,
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.name, this.url});
+
+  final String name;
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final letter = name.isEmpty ? '?' : name[0].toUpperCase();
+    final trimmed = url?.trim();
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E3A8A), Color(0xFF38BDF8)],
+        ),
+        border: Border.all(color: Colors.white, width: 1.4),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: trimmed != null && trimmed.isNotEmpty
+          ? Image.network(
+              trimmed,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Center(
+                child: Text(
+                  letter,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            )
+          : Center(
+              child: Text(
+                letter,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+TextSpan _highlight(String text, String query, {int maxLines = 1}) {
+  const base = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    color: Color(0xB31B1E28),
+  );
+  const match = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w800,
+    color: _ink,
+  );
+  final lowerTitle = text.toLowerCase();
+  final lowerQuery = query.toLowerCase();
+  final start = lowerTitle.indexOf(lowerQuery);
+  if (lowerQuery.isEmpty || start < 0) {
+    return TextSpan(text: text, style: base);
+  }
+  final end = start + lowerQuery.length;
+  return TextSpan(
+    children: [
+      TextSpan(text: text.substring(0, start), style: base),
+      TextSpan(text: text.substring(start, end), style: match),
+      TextSpan(text: text.substring(end), style: base),
+    ],
+  );
+}
+
+class _NoResults extends StatelessWidget {
+  const _NoResults({super.key, required this.query, required this.wave});
+
+  final String query;
+  final AnimationController wave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
       padding: const EdgeInsets.only(top: 26),
       child: Column(
         children: [
-          // A near-empty glass droplet: barely any liquid left in it.
           AnimatedBuilder(
-            animation: _wave,
+            animation: wave,
             builder: (context, _) => Container(
               width: 72,
               height: 72,
@@ -486,13 +1003,6 @@ class _SearchSectionState extends State<SearchSection>
                   color: Colors.white.withValues(alpha: .95),
                   width: 1.4,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _ink.withValues(alpha: .1),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
               child: ClipOval(
                 child: Stack(
@@ -500,7 +1010,7 @@ class _SearchSectionState extends State<SearchSection>
                   children: [
                     CustomPaint(
                       painter: WaveFillPainter(
-                        phase: _wave.value * 2 * pi,
+                        phase: wave.value * 2 * pi,
                         fill: .16,
                         color: _ink.withValues(alpha: .1),
                         amplitude: 3,
@@ -521,7 +1031,7 @@ class _SearchSectionState extends State<SearchSection>
           ),
           const SizedBox(height: 16),
           Text(
-            'No matches for “$_query”',
+            'No matches for “$query”',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 15,
@@ -531,7 +1041,7 @@ class _SearchSectionState extends State<SearchSection>
           ),
           const SizedBox(height: 5),
           const Text(
-            'Try a person, product or category name.',
+            'Try a person, post keyword, or hashtag.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12.5, color: _muted),
           ),
@@ -541,166 +1051,29 @@ class _SearchSectionState extends State<SearchSection>
   }
 }
 
-/// A frosted result row. The part of the title that matches the query is
-/// inked darker, so the match is visible at a glance.
-class _ResultTile extends StatelessWidget {
-  const _ResultTile({required this.entry, required this.query});
+class _ErrorBlock extends StatelessWidget {
+  const _ErrorBlock({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
 
-  final _SearchEntry entry;
-  final String query;
-
-  TextSpan _highlighted() {
-    const base = TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
-      color: Color(0xB31B1E28), // _ink at 70%
-    );
-    const match = TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.w800,
-      color: _ink,
-    );
-    final lowerTitle = entry.title.toLowerCase();
-    final lowerQuery = query.toLowerCase();
-    final start = lowerTitle.indexOf(lowerQuery);
-    if (lowerQuery.isEmpty || start < 0) {
-      return TextSpan(text: entry.title, style: base);
-    }
-    final end = start + lowerQuery.length;
-    return TextSpan(
-      children: [
-        TextSpan(text: entry.title.substring(0, start), style: base),
-        TextSpan(text: entry.title.substring(start, end), style: match),
-        TextSpan(text: entry.title.substring(end), style: base),
-      ],
-    );
-  }
+  final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final isPerson = entry.kind == 'Person';
-    final tint = entry.tint ?? _ink;
-
-    return LiquidPressable(
-      onTap: () => HapticFeedback.selectionClick(),
-      borderRadius: BorderRadius.circular(20),
-      rippleColor: _ink,
-      intensity: .6,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: .58),
-                  Colors.white.withValues(alpha: .30),
-                ],
-              ),
-              border: Border.all(color: Colors.white.withValues(alpha: .85)),
-            ),
-            child: Row(
-              children: [
-                if (isPerson)
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          BrandColors.secondarySurface,
-                          Color(0xFF8A93A8),
-                        ],
-                      ),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: .8),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        entry.title[0].toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(13),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          tint.withValues(alpha: .22),
-                          tint.withValues(alpha: .08),
-                        ],
-                      ),
-                      border: Border.all(color: tint.withValues(alpha: .2)),
-                    ),
-                    child: Icon(entry.icon, size: 19, color: tint),
-                  ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      RichText(
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        text: _highlighted(),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        entry.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11.5, color: _muted),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(11),
-                    color: (isPerson ? _ink : tint).withValues(alpha: .08),
-                    border: Border.all(
-                      color: (isPerson ? _ink : tint).withValues(alpha: .15),
-                    ),
-                  ),
-                  child: Text(
-                    entry.kind,
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: .3,
-                      color: (isPerson ? _ink : tint).withValues(alpha: .75),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 28),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: _muted),
           ),
-        ),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'login_page.dart';
+import 'dashboard_page.dart';
+import 'services/auth_session.dart';
 import 'theme/brand_colors.dart';
 import 'widgets/animated_blob_background.dart';
 import 'widgets/wave_fill_painter.dart';
@@ -84,12 +86,14 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     if (!mounted) return;
     await _exit.forward();
     if (!mounted) return;
+    final signedIn = AuthSession.instance.isSignedIn;
+    final email = AuthSession.instance.email ?? 'demo@innovator.com';
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 520),
         pageBuilder: (_, animation, __) => FadeTransition(
           opacity: animation,
-          child: const LoginPage(),
+          child: signedIn ? DashboardPage(email: email) : const LoginPage(),
         ),
       ),
     );

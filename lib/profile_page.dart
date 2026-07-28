@@ -5,6 +5,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'models/api_response.dart';
+import 'models/profile_models.dart';
+import 'services/profile_api.dart';
 import 'theme/brand_colors.dart';
 import 'widgets/animated_blob_background.dart';
 import 'widgets/fast_glass.dart';
@@ -12,6 +15,7 @@ import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
 
 const _ink = BrandColors.ink;
+const _muted = BrandColors.muted;
 
 const _defaultCover = 'Assets/feed/post_07.jpg';
 
@@ -144,129 +148,140 @@ class _LearnerInfo {
   }
 }
 
-_LearnerInfo _defaultLearnerInfo(String name) => _LearnerInfo(
+_LearnerInfo _emptyLearnerInfo(String name) => _LearnerInfo(
       displayName: name,
       fullName: name,
-      bio:
-          'Building liquid products at Innovator. Design systems, Flutter, and '
-          'ideas that ship. Always open to collaborate on the next breakthrough.',
-      email: '${name.toLowerCase().replaceAll(' ', '.')}@innovator.edu',
-      phone: '+977 98X-XXX-XXXX',
-      dateOfBirth: '15 Mar 2003',
-      gender: 'Prefer not to say',
-      city: 'Kathmandu',
-      country: 'Nepal',
-      permanentAddress: 'Ward 5, Lazimpat, Kathmandu',
-      temporaryAddress: 'Baneshwor, Kathmandu',
-      zipCode: '44600',
-      school: 'Innovator University',
-      faculty: 'School of Technology',
-      educationLevel: 'Bachelor level',
-      degree: 'Bachelor',
-      major: 'Computer Science',
-      yearLevel: '3rd Year',
-      studentId: 'INV-2023-0842',
-      enrollmentYear: '2023',
-      skills: 'Flutter, UI Design, Product Thinking',
-      hobby: 'Photography, hiking, sketching UI ideas',
-      learningGoals: 'Ship AI-assisted learning tools',
-      language: 'English, Nepali',
-      portfolio: 'innovator.app/u/${name.toLowerCase()}',
-      facebook: 'https://facebook.com/${name.toLowerCase().replaceAll(' ', '')}',
-      linkedin: 'https://linkedin.com/in/${name.toLowerCase().replaceAll(' ', '-')}',
-      instagram: 'https://instagram.com/${name.toLowerCase().replaceAll(' ', '')}',
-      github: 'https://github.com/${name.toLowerCase().replaceAll(' ', '')}',
+      bio: '',
+      email: '',
+      phone: '',
+      dateOfBirth: '',
+      gender: '',
+      city: '',
+      country: '',
+      permanentAddress: '',
+      temporaryAddress: '',
+      zipCode: '',
+      school: '',
+      faculty: '',
+      educationLevel: '',
+      degree: '',
+      major: '',
+      yearLevel: '',
+      studentId: '',
+      enrollmentYear: '',
+      skills: '',
+      hobby: '',
+      learningGoals: '',
+      language: '',
+      portfolio: '',
+      facebook: '',
+      linkedin: '',
+      instagram: '',
+      github: '',
     );
+
+_LearnerInfo _learnerFromProfile(UserProfile profile, {_LearnerInfo? keep}) {
+  final base = keep ?? _emptyLearnerInfo(profile.displayName);
+  return base.copyWith(
+    displayName: profile.displayName,
+    fullName: (profile.fullName?.trim().isNotEmpty ?? false)
+        ? profile.fullName!.trim()
+        : profile.displayName,
+    bio: profile.bio ?? '',
+    email: profile.email ?? '',
+    phone: profile.phone ?? '',
+    dateOfBirth: profile.dateOfBirth ?? '',
+    gender: profile.gender ?? '',
+    permanentAddress: profile.address ?? base.permanentAddress,
+    educationLevel: profile.education ?? base.educationLevel,
+    major: profile.occupation ?? base.major,
+    skills: profile.interests.isEmpty
+        ? base.skills
+        : profile.interests.join(', '),
+  );
+}
+
+UpdateProfileRequest _toUpdateRequest(_LearnerInfo info) {
+  final interests = <String>[
+    ...info.skills.split(RegExp(r'[,/|]')),
+    ...info.hobby.split(RegExp(r'[,/|]')),
+  ]
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .toSet()
+      .toList();
+
+  final address = [
+    info.permanentAddress,
+    info.temporaryAddress,
+    [info.city, info.country].where((e) => e.trim().isNotEmpty).join(', '),
+    if (info.zipCode.trim().isNotEmpty) 'ZIP ${info.zipCode.trim()}',
+  ].where((e) => e.trim().isNotEmpty).join(' · ');
+
+  final education = [
+    info.educationLevel,
+    info.school,
+    info.faculty,
+    info.degree,
+    info.major,
+    info.yearLevel,
+  ].where((e) => e.trim().isNotEmpty).join(' · ');
+
+  final occupation = info.major.trim().isNotEmpty
+      ? info.major.trim()
+      : (info.learningGoals.trim().isNotEmpty
+          ? info.learningGoals.trim()
+          : info.degree.trim());
+
+  return UpdateProfileRequest(
+    fullName: info.fullName.trim().isEmpty ? info.displayName : info.fullName,
+    bio: info.bio,
+    dateOfBirth: info.dateOfBirth,
+    phone: info.phone,
+    gender: info.gender,
+    address: address.isEmpty ? null : address,
+    education: education.isEmpty ? null : education,
+    occupation: occupation.isEmpty ? null : occupation,
+    interests: interests,
+  );
+}
 
 class _Person {
   const _Person({
     required this.name,
     required this.title,
     required this.colors,
+    this.authUserId,
+    this.avatarUrl,
   });
 
   final String name;
   final String title;
   final List<Color> colors;
+  final String? authUserId;
+  final String? avatarUrl;
+
+  factory _Person.fromListUser(ProfileListUser user) {
+    final seed = user.id.isNotEmpty ? user.id : user.displayName;
+    final palettes = const [
+      [Color(0xFF4C1D95), Color(0xFF7C3AED)],
+      [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+      [Color(0xFF0F766E), Color(0xFF14B8A6)],
+      [Color(0xFF9F1239), Color(0xFFE11D48)],
+      [Color(0xFF0369A1), Color(0xFF38BDF8)],
+    ];
+    final colors = palettes[seed.hashCode.abs() % palettes.length];
+    return _Person(
+      name: user.displayName,
+      title: user.role?.trim().isNotEmpty == true
+          ? user.role!
+          : (user.username ?? 'Member'),
+      colors: colors,
+      authUserId: user.id,
+      avatarUrl: user.avatar,
+    );
+  }
 }
-
-/// People following the user (Collaborators).
-const _collaboratorsList = [
-  _Person(
-    name: 'Maya Chen',
-    title: 'Product Designer',
-    colors: [Color(0xFF4C1D95), Color(0xFF7C3AED)],
-  ),
-  _Person(
-    name: 'Aarav Sharma',
-    title: 'Flutter Developer',
-    colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
-  ),
-  _Person(
-    name: 'Priya Thapa',
-    title: 'Brand Strategist',
-    colors: [Color(0xFF9F1239), Color(0xFFE11D48)],
-  ),
-  _Person(
-    name: 'Rohan KC',
-    title: 'Growth Lead',
-    colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
-  ),
-  _Person(
-    name: 'Sneha Rai',
-    title: 'UX Researcher',
-    colors: [Color(0xFF9D174D), Color(0xFFDB2777)],
-  ),
-  _Person(
-    name: 'Kabir Joshi',
-    title: 'Full-stack Engineer',
-    colors: [Color(0xFF3730A3), Color(0xFF4F46E5)],
-  ),
-  _Person(
-    name: 'Anisha Gurung',
-    title: 'Motion Designer',
-    colors: [Color(0xFF92400E), Color(0xFFB45309)],
-  ),
-  _Person(
-    name: 'Nischal Adhikari',
-    title: 'Founder · Atlas',
-    colors: [Color(0xFF166534), Color(0xFF16A34A)],
-  ),
-];
-
-/// People the user is following (Collaborating).
-const _collaboratingList = [
-  _Person(
-    name: 'Elena Voss',
-    title: 'Design Systems',
-    colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
-  ),
-  _Person(
-    name: 'Samir Basnet',
-    title: 'AI Engineer',
-    colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
-  ),
-  _Person(
-    name: 'Innovator Team',
-    title: 'Official',
-    colors: [Color(0xFFE0A800), BrandColors.accent],
-  ),
-  _Person(
-    name: 'Lina Ortega',
-    title: 'Product Manager',
-    colors: [Color(0xFF5C2D91), Color(0xFF7C3AED)],
-  ),
-  _Person(
-    name: 'Tenzin Lama',
-    title: 'Illustrator',
-    colors: [Color(0xFF9D174D), Color(0xFFDB2777)],
-  ),
-  _Person(
-    name: 'Hana Park',
-    title: 'Frontend Lead',
-    colors: [Color(0xFF0A1C30), Color(0xFF14304A)],
-  ),
-];
 
 class _TitleBadge {
   const _TitleBadge({
@@ -374,9 +389,16 @@ const _innovations = [
 
 /// Full-screen view of another member's profile (opened from feed, etc.).
 class AuthorProfilePage extends StatelessWidget {
-  const AuthorProfilePage({super.key, required this.name});
+  const AuthorProfilePage({
+    super.key,
+    required this.name,
+    this.authUserId,
+    this.username,
+  });
 
   final String name;
+  final String? authUserId;
+  final String? username;
 
   @override
   Widget build(BuildContext context) {
@@ -388,6 +410,8 @@ class AuthorProfilePage extends StatelessWidget {
           const AnimatedBlobBackground(),
           ProfileSection(
             name: name,
+            authUserId: authUserId,
+            username: username,
             contentPadding: EdgeInsets.fromLTRB(0, top, 0, 24),
             onBack: () => Navigator.of(context).pop(),
           ),
@@ -403,11 +427,15 @@ class ProfileSection extends StatefulWidget {
   const ProfileSection({
     super.key,
     required this.name,
+    this.authUserId,
+    this.username,
     this.contentPadding = EdgeInsets.zero,
     this.onBack,
   });
 
   final String name;
+  final String? authUserId;
+  final String? username;
   final EdgeInsets contentPadding;
 
   /// When set, this is treated as another person's profile: back replaces
@@ -420,17 +448,26 @@ class ProfileSection extends StatefulWidget {
 
 class _ProfileSectionState extends State<ProfileSection>
     with TickerProviderStateMixin {
+  final _profileApi = ProfileApi();
+
   int _titleIndex = 0;
   Uint8List? _avatarBytes;
   Uint8List? _coverBytes;
+  String? _avatarUrl;
   String? _cvFileName;
-  late _LearnerInfo _info = _defaultLearnerInfo(widget.name);
+  late _LearnerInfo _info = _emptyLearnerInfo(widget.name);
 
-  static const _collaborators = 128;
-  static const _collaborating = 64;
+  UserProfile? _profile;
+  bool _loading = true;
+  bool _followBusy = false;
+  String? _error;
+  int _collaborators = 0;
+  int _collaborating = 0;
   static const _innovationCount = 6;
   static const _avatarSize = 92.0;
   static const _coverHeight = 168.0;
+
+  bool get _isOwnProfile => widget.onBack == null;
 
   late final AnimationController _entrance = AnimationController(
     vsync: this,
@@ -443,18 +480,73 @@ class _ProfileSectionState extends State<ProfileSection>
   )..repeat();
 
   @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  @override
   void dispose() {
     _entrance.dispose();
     _wave.dispose();
     super.dispose();
   }
 
-  void _openPeopleSheet(
+  Future<void> _loadProfile() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final UserProfile profile;
+      if (_isOwnProfile) {
+        profile = await _profileApi.getMe();
+      } else if (widget.authUserId != null && widget.authUserId!.isNotEmpty) {
+        profile = await _profileApi.getByAuthUserId(widget.authUserId!);
+      } else if (widget.username != null && widget.username!.isNotEmpty) {
+        profile = await _profileApi.getByUsername(widget.username!);
+      } else {
+        profile = await _profileApi.getByUsername(widget.name);
+      }
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _info = _learnerFromProfile(profile, keep: _info);
+        _avatarUrl = (profile.avatar != null && profile.avatar!.trim().isNotEmpty)
+            ? profile.avatar!.trim()
+            : null;
+        _collaborators = profile.followersCount;
+        _collaborating = profile.followingCount;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load profile';
+      });
+    }
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+    );
+  }
+
+  Future<void> _openPeopleSheet(
     BuildContext context, {
     required String title,
     required String subtitle,
-    required List<_Person> people,
-  }) {
+    required Future<List<ProfileListUser>> Function() loader,
+  }) async {
     HapticFeedback.mediumImpact();
     showModalBottomSheet<void>(
       context: context,
@@ -464,7 +556,7 @@ class _ProfileSectionState extends State<ProfileSection>
       builder: (_) => _PeopleSheet(
         title: title,
         subtitle: subtitle,
-        people: people,
+        loader: loader,
       ),
     );
   }
@@ -500,12 +592,7 @@ class _ProfileSectionState extends State<ProfileSection>
       return result?.files.single.bytes;
     } catch (_) {
       if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Could not open the photo picker'),
-        ),
-      );
+      _toast('Could not open the photo picker');
       return null;
     }
   }
@@ -513,8 +600,21 @@ class _ProfileSectionState extends State<ProfileSection>
   Future<void> _changePhoto() async {
     HapticFeedback.mediumImpact();
     final bytes = await _pickImage();
-    if (bytes != null && mounted) {
-      setState(() => _avatarBytes = bytes);
+    if (bytes == null || !mounted) return;
+    setState(() => _avatarBytes = bytes);
+    try {
+      final url = await _profileApi.uploadAvatar(bytes);
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = url;
+        _avatarBytes = null;
+      });
+      _toast('Avatar updated');
+      await _loadProfile();
+    } on ApiException catch (e) {
+      if (mounted) _toast(e.message);
+    } catch (_) {
+      if (mounted) _toast('Could not upload avatar');
     }
   }
 
@@ -523,6 +623,7 @@ class _ProfileSectionState extends State<ProfileSection>
     final bytes = await _pickImage();
     if (bytes != null && mounted) {
       setState(() => _coverBytes = bytes);
+      _toast('Cover updated locally (API has avatar only)');
     }
   }
 
@@ -537,38 +638,80 @@ class _ProfileSectionState extends State<ProfileSection>
       final file = result?.files.single;
       if (file == null || !mounted) return;
       setState(() => _cvFileName = file.name);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          backgroundColor: _ink.withValues(alpha: .92),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          content: Text(
-            'CV updated · ${file.name}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          duration: const Duration(milliseconds: 2200),
-        ),
-      );
+      _toast('CV selected · ${file.name} (upload endpoint not in profile API)');
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Could not open the CV picker'),
-        ),
-      );
+      if (mounted) _toast('Could not open the CV picker');
     }
   }
 
   void _cycleTitle() {
     HapticFeedback.selectionClick();
     setState(() => _titleIndex = (_titleIndex + 1) % _titles.length);
+  }
+
+  Future<void> _toggleFollow() async {
+    final target = _profile?.authUserId;
+    if (target == null || target.isEmpty || _followBusy) return;
+    setState(() => _followBusy = true);
+    try {
+      final result = await _profileApi.toggleFollow(target);
+      if (!mounted) return;
+      setState(() {
+        _followBusy = false;
+        final current = _profile;
+        if (current != null) {
+          _profile = UserProfile(
+            id: current.id,
+            authUserId: current.authUserId,
+            username: current.username,
+            fullName: current.fullName,
+            email: current.email,
+            role: current.role,
+            bio: current.bio,
+            avatar: current.avatar,
+            dateOfBirth: current.dateOfBirth,
+            phone: current.phone,
+            gender: current.gender,
+            address: current.address,
+            education: current.education,
+            occupation: current.occupation,
+            interests: current.interests,
+            followersCount: result.isFollowing
+                ? current.followersCount + 1
+                : (current.followersCount > 0
+                    ? current.followersCount - 1
+                    : 0),
+            followingCount: current.followingCount,
+            isFollowed: result.isFollowing,
+            createdAt: current.createdAt,
+          );
+          _collaborators = _profile!.followersCount;
+        }
+      });
+      _toast(result.message ?? (result.isFollowing ? 'Following' : 'Unfollowed'));
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() => _followBusy = false);
+        _toast(e.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _followBusy = false);
+        _toast('Could not update follow');
+      }
+    }
+  }
+
+  Future<void> _blockUser() async {
+    final target = _profile?.authUserId;
+    if (target == null || target.isEmpty) return;
+    try {
+      final result = await _profileApi.block(target);
+      if (!mounted) return;
+      _toast(result.message ?? 'Blocked');
+    } on ApiException catch (e) {
+      if (mounted) _toast(e.message);
+    }
   }
 
   void _openProfileMenu() {
@@ -614,8 +757,22 @@ class _ProfileSectionState extends State<ProfileSection>
         ),
       ),
     );
-    if (updated != null && mounted) {
-      setState(() => _info = updated);
+    if (updated == null || !mounted) return;
+    setState(() => _info = updated);
+    try {
+      final saved = await _profileApi.updateProfile(_toUpdateRequest(updated));
+      if (!mounted) return;
+      setState(() {
+        _profile = saved;
+        _info = _learnerFromProfile(saved, keep: updated);
+        _collaborators = saved.followersCount;
+        _collaborating = saved.followingCount;
+      });
+      _toast('Profile saved');
+    } on ApiException catch (e) {
+      if (mounted) _toast(e.message);
+    } catch (_) {
+      if (mounted) _toast('Could not save profile');
     }
   }
 
@@ -626,6 +783,31 @@ class _ProfileSectionState extends State<ProfileSection>
     final overlap = _avatarSize * .55;
     final displayName =
         _info.displayName.isEmpty ? widget.name : _info.displayName;
+    final targetAuthId = _profile?.authUserId;
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
+    }
+
+    if (_error != null && _profile == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: _muted),
+              ),
+              const SizedBox(height: 12),
+              TextButton(onPressed: _loadProfile, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
 
     return ListView(
       padding: EdgeInsets.only(bottom: padding.bottom + 6),
@@ -639,6 +821,7 @@ class _ProfileSectionState extends State<ProfileSection>
             overlap: overlap,
             coverBytes: _coverBytes,
             avatarBytes: _avatarBytes,
+            avatarUrl: _avatarUrl,
             name: displayName,
             accent: title.colors,
             wave: _wave,
@@ -669,6 +852,16 @@ class _ProfileSectionState extends State<ProfileSection>
                         height: 1.1,
                       ),
                     ),
+                    if (_profile?.username != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '@${_profile!.username}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _ink.withValues(alpha: .45),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     _TitleBadgeChip(
                       badge: title,
@@ -677,7 +870,19 @@ class _ProfileSectionState extends State<ProfileSection>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${_info.school} · ${_info.educationLevel} · ${_info.major}',
+                      [
+                        if (_info.educationLevel.trim().isNotEmpty)
+                          _info.educationLevel,
+                        if (_info.school.trim().isNotEmpty) _info.school,
+                        if (_info.major.trim().isNotEmpty) _info.major,
+                      ].join(' · ').trim().isEmpty
+                          ? 'Innovator member'
+                          : [
+                              if (_info.educationLevel.trim().isNotEmpty)
+                                _info.educationLevel,
+                              if (_info.school.trim().isNotEmpty) _info.school,
+                              if (_info.major.trim().isNotEmpty) _info.major,
+                            ].join(' · '),
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -687,16 +892,87 @@ class _ProfileSectionState extends State<ProfileSection>
                         color: _ink.withValues(alpha: .48),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _info.bio,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        height: 1.45,
-                        color: _ink.withValues(alpha: .72),
+                    if (_info.bio.trim().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _info.bio,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.45,
+                          color: _ink.withValues(alpha: .72),
+                        ),
                       ),
-                    ),
+                    ],
+                    if (!_isOwnProfile) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          LiquidPressable(
+                            onTap: _followBusy ? () {} : _toggleFollow,
+                            borderRadius: BorderRadius.circular(999),
+                            rippleColor: Colors.white,
+                            intensity: .8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                color: (_profile?.isFollowed ?? false)
+                                    ? Colors.white.withValues(alpha: .7)
+                                    : BrandColors.secondarySurface,
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: .85),
+                                ),
+                              ),
+                              child: Text(
+                                _followBusy
+                                    ? '…'
+                                    : ((_profile?.isFollowed ?? false)
+                                        ? 'Following'
+                                        : 'Follow'),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: (_profile?.isFollowed ?? false)
+                                      ? _ink
+                                      : Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          LiquidPressable(
+                            onTap: _blockUser,
+                            borderRadius: BorderRadius.circular(999),
+                            rippleColor: _ink,
+                            intensity: .7,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                color: Colors.white.withValues(alpha: .55),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: .9),
+                                ),
+                              ),
+                              child: Text(
+                                'Block',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: _ink.withValues(alpha: .75),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -710,14 +986,18 @@ class _ProfileSectionState extends State<ProfileSection>
                   onCollaborators: () => _openPeopleSheet(
                     context,
                     title: 'Collaborators',
-                    subtitle: 'People following you',
-                    people: _collaboratorsList,
+                    subtitle: 'People following this profile',
+                    loader: () => _profileApi.followers(
+                      authUserId: _isOwnProfile ? null : targetAuthId,
+                    ),
                   ),
                   onCollaborating: () => _openPeopleSheet(
                     context,
                     title: 'Collaborating',
-                    subtitle: 'People you follow',
-                    people: _collaboratingList,
+                    subtitle: 'People this profile follows',
+                    loader: () => _profileApi.following(
+                      authUserId: _isOwnProfile ? null : targetAuthId,
+                    ),
                   ),
                 ),
               ),
@@ -756,6 +1036,7 @@ class _CoverHeader extends StatelessWidget {
     required this.overlap,
     required this.coverBytes,
     required this.avatarBytes,
+    this.avatarUrl,
     required this.name,
     required this.accent,
     required this.wave,
@@ -771,6 +1052,7 @@ class _CoverHeader extends StatelessWidget {
   final double overlap;
   final Uint8List? coverBytes;
   final Uint8List? avatarBytes;
+  final String? avatarUrl;
   final String name;
   final List<Color> accent;
   final AnimationController wave;
@@ -847,6 +1129,7 @@ class _CoverHeader extends StatelessWidget {
                 size: avatarSize,
                 name: name,
                 bytes: avatarBytes,
+                imageUrl: avatarUrl,
                 wave: wave,
                 accent: accent,
                 onCamera: onChangeAvatar,
@@ -1827,6 +2110,7 @@ class _AvatarBadge extends StatelessWidget {
     required this.size,
     required this.name,
     required this.bytes,
+    this.imageUrl,
     required this.wave,
     required this.accent,
     this.onCamera,
@@ -1835,6 +2119,7 @@ class _AvatarBadge extends StatelessWidget {
   final double size;
   final String name;
   final Uint8List? bytes;
+  final String? imageUrl;
   final AnimationController wave;
   final List<Color> accent;
   final VoidCallback? onCamera;
@@ -1865,7 +2150,39 @@ class _AvatarBadge extends StatelessWidget {
                 height: size,
                 child: bytes != null
                     ? Image.memory(bytes!, fit: BoxFit.cover)
-                    : Stack(
+                    : (imageUrl != null && imageUrl!.trim().isNotEmpty)
+                        ? Image.network(
+                            imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        accent.first.withValues(alpha: .9),
+                                        accent.last,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Center(
+                                  child: Text(
+                                    name.isEmpty ? '?' : name[0].toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: size * .38,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Stack(
                         fit: StackFit.expand,
                         children: [
                           DecoratedBox(
@@ -2157,16 +2474,58 @@ class _StatCell extends StatelessWidget {
 
 // ----------------------------------------------------------- people sheet
 
-class _PeopleSheet extends StatelessWidget {
+class _PeopleSheet extends StatefulWidget {
   const _PeopleSheet({
     required this.title,
     required this.subtitle,
-    required this.people,
+    required this.loader,
   });
 
   final String title;
   final String subtitle;
-  final List<_Person> people;
+  final Future<List<ProfileListUser>> Function() loader;
+
+  @override
+  State<_PeopleSheet> createState() => _PeopleSheetState();
+}
+
+class _PeopleSheetState extends State<_PeopleSheet> {
+  bool _loading = true;
+  String? _error;
+  List<_Person> _people = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final users = await widget.loader();
+      if (!mounted) return;
+      setState(() {
+        _people = users.map(_Person.fromListUser).toList();
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load people';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2210,7 +2569,7 @@ class _PeopleSheet extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  title,
+                                  widget.title,
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w800,
@@ -2220,7 +2579,9 @@ class _PeopleSheet extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  '$subtitle · ${people.length} shown',
+                                  _loading
+                                      ? widget.subtitle
+                                      : '${widget.subtitle} · ${_people.length} shown',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     color: _ink.withValues(alpha: .48),
@@ -2253,15 +2614,57 @@ class _PeopleSheet extends StatelessWidget {
                       ),
                     ),
                     Flexible(
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
-                        itemCount: people.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          return _PersonTile(person: people[index]);
-                        },
-                      ),
+                      child: _loading
+                          ? const Padding(
+                              padding: EdgeInsets.all(36),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                ),
+                              ),
+                            )
+                          : _error != null
+                              ? Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        _error!,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(color: _muted),
+                                      ),
+                                      TextButton(
+                                        onPressed: _load,
+                                        child: const Text('Retry'),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : _people.isEmpty
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(28),
+                                      child: Text(
+                                        'No people here yet',
+                                        style: TextStyle(color: _muted),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      shrinkWrap: true,
+                                      padding: const EdgeInsets.fromLTRB(
+                                        14,
+                                        8,
+                                        14,
+                                        18,
+                                      ),
+                                      itemCount: _people.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 8),
+                                      itemBuilder: (context, index) {
+                                        return _PersonTile(
+                                          person: _people[index],
+                                        );
+                                      },
+                                    ),
                     ),
                   ],
                 ),
@@ -2282,9 +2685,24 @@ class _PersonTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final letter = person.name.isEmpty ? '?' : person.name[0].toUpperCase();
+    final avatarUrl = person.avatarUrl?.trim();
 
     return FastTap(
-      onTap: () => HapticFeedback.selectionClick(),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        final id = person.authUserId;
+        if (id == null || id.isEmpty) return;
+        final nav = Navigator.of(context);
+        nav.pop();
+        nav.push(
+          MaterialPageRoute<void>(
+            builder: (_) => AuthorProfilePage(
+              name: person.name,
+              authUserId: id,
+            ),
+          ),
+        );
+      },
       borderRadius: BorderRadius.circular(18),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -2312,16 +2730,32 @@ class _PersonTile extends StatelessWidget {
                   ),
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
-                child: Center(
-                  child: Text(
-                    letter,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: avatarUrl != null && avatarUrl.isNotEmpty
+                    ? Image.network(
+                        avatarUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Text(
+                            letter,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Text(
+                          letter,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
               ),
             ),
             const SizedBox(width: 12),
