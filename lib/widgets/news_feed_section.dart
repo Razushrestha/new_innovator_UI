@@ -8,7 +8,6 @@ import '../profile_page.dart';
 import '../theme/brand_colors.dart';
 import 'fast_glass.dart';
 import 'liquid_pressable.dart';
-import 'wave_fill_painter.dart';
 
 const _ink = BrandColors.ink;
 const _likeRed = Color(0xFFE0245E);
@@ -257,11 +256,12 @@ class NewsFeedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cacheExtent = MediaQuery.sizeOf(context).height * 1.5;
     return ListView.builder(
       controller: controller,
       padding: padding,
       itemCount: _samplePosts.length,
-      cacheExtent: 280,
+      cacheExtent: cacheExtent,
       physics: const ClampingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
@@ -444,10 +444,7 @@ class _FeedCardState extends State<_FeedCard> {
                   const SizedBox(width: 8),
                   _FollowButton(
                     following: _following,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _following = !_following);
-                    },
+                    onTap: () => setState(() => _following = !_following),
                   ),
                   const SizedBox(width: 2),
                   Builder(
@@ -498,7 +495,9 @@ class _FeedCardState extends State<_FeedCard> {
                   _ActionButton(
                     icon: Icons.chat_bubble_outline_rounded,
                     label: '${post.comments}',
-                    onTap: () {},
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                    },
                   ),
                   _ActionButton(
                     icon: Icons.repeat_rounded,
@@ -513,7 +512,10 @@ class _FeedCardState extends State<_FeedCard> {
                   _ActionButton(
                     icon: Icons.ios_share_rounded,
                     label: 'Share',
-                    onTap: () {},
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      _toast('Share coming soon');
+                    },
                   ),
                 ],
               ),
@@ -699,6 +701,7 @@ class _ExpandableStatusState extends State<_ExpandableStatus> {
 
   bool _expanded = false;
   bool _hasOverflow = false;
+  double _measuredWidth = -1;
 
   static final _style = TextStyle(
     fontSize: 13.5,
@@ -706,26 +709,38 @@ class _ExpandableStatusState extends State<_ExpandableStatus> {
     color: _ink.withValues(alpha: .82),
   );
 
-  void _measure(double maxWidth) {
+  void _measureIfNeeded(double maxWidth) {
+    if (maxWidth <= 0 || maxWidth == _measuredWidth) return;
     final painter = TextPainter(
       text: TextSpan(text: widget.text, style: _style),
       maxLines: _maxLines,
       textDirection: TextDirection.ltr,
       ellipsis: '…',
     )..layout(maxWidth: maxWidth);
-
     final overflows = painter.didExceedMaxLines;
+    _measuredWidth = maxWidth;
     if (overflows == _hasOverflow) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _hasOverflow = overflows);
+      if (!mounted) return;
+      setState(() => _hasOverflow = overflows);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant _ExpandableStatus oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _measuredWidth = -1;
+      _hasOverflow = false;
+      _expanded = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        _measure(constraints.maxWidth);
+        _measureIfNeeded(constraints.maxWidth);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,197 +798,57 @@ class _NameBadge extends StatelessWidget {
   }
 }
 
-/// Pill that floods with liquid when tapped — ink rises into "+ Follow",
-/// then washes out to a glass "Following" state (and back).
-class _FollowButton extends StatefulWidget {
+/// Lightweight follow pill — FastTap + AnimatedContainer (no idle tickers).
+class _FollowButton extends StatelessWidget {
   const _FollowButton({required this.following, required this.onTap});
 
   final bool following;
   final VoidCallback onTap;
 
   @override
-  State<_FollowButton> createState() => _FollowButtonState();
-}
-
-class _FollowButtonState extends State<_FollowButton>
-    with TickerProviderStateMixin {
-  late final AnimationController _fill = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 720),
-    value: widget.following ? 1 : 0,
-  );
-
-  late final AnimationController _wave = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2400),
-  );
-
-  late final AnimationController _bloom = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 520),
-  );
-
-  Future<void> _runTo(bool following) async {
-    if (!_wave.isAnimating) _wave.repeat();
-    if (following) {
-      _bloom
-        ..value = 0
-        ..forward();
-      await _fill.forward();
-    } else {
-      await _fill.reverse();
-    }
-    if (mounted) _wave.stop();
-  }
-
-  @override
-  void didUpdateWidget(covariant _FollowButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.following == widget.following) return;
-    _runTo(widget.following);
-  }
-
-  @override
-  void dispose() {
-    _fill.dispose();
-    _wave.dispose();
-    _bloom.dispose();
-    super.dispose();
-  }
-
-  void _handleTap() {
-    HapticFeedback.mediumImpact();
-    widget.onTap();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return LiquidPressable(
-      onTap: _handleTap,
+    final labelColor = following ? _ink : Colors.white;
+    return FastTap(
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        onTap();
+      },
       borderRadius: BorderRadius.circular(999),
-      rippleColor: widget.following ? _ink : Colors.white,
-      intensity: 1.15,
-      child: AnimatedBuilder(
-        animation: Listenable.merge([_fill, _wave, _bloom]),
-        builder: (context, _) {
-          final raw = _fill.value;
-          final level = Curves.easeOutCubic.transform(raw);
-          final followingLook = level > .55;
-          final labelColor = Color.lerp(
-            Colors.white,
-            _ink,
-            ((level - .35) / .4).clamp(0, 1),
-          )!;
-          final bloom = Curves.easeOut.transform(_bloom.value);
-          final waveFill = widget.following
-              ? (level < 1 ? level * 1.15 : 0.0)
-              : (level > 0 ? (1 - level) * 1.15 : 0.0);
-
-          return Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: 12 + bloom * 2,
-              vertical: 7,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: following
+              ? Colors.white.withValues(alpha: .78)
+              : BrandColors.secondarySurface,
+          border: Border.all(
+            color: following
+                ? _ink.withValues(alpha: .22)
+                : Colors.white.withValues(alpha: .28),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              following ? Icons.check_rounded : Icons.add_rounded,
+              size: 14,
+              color: labelColor,
             ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              color: Color.lerp(
-                BrandColors.secondarySurface,
-                Colors.white.withValues(alpha: .78),
-                level,
-              ),
-              border: Border.all(
-                color: Color.lerp(
-                  Colors.white.withValues(alpha: .28),
-                  _ink.withValues(alpha: .22),
-                  level,
-                )!,
-              ),
-              boxShadow: [
-                if (bloom > 0 && bloom < 1)
-                  BoxShadow(
-                    color: BrandColors.accent.withValues(
-                      alpha: .35 * (1 - bloom),
-                    ),
-                    blurRadius: 16 * bloom + 4,
-                    spreadRadius: 1,
-                  ),
-                if (level > .85)
-                  BoxShadow(
-                    color: _ink.withValues(alpha: .08),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (waveFill > 0)
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: WaveFillPainter(
-                          phase: _wave.value * 2 * math.pi + level * 3,
-                          fill: waveFill,
-                          color: widget.following
-                              ? BrandColors.accent.withValues(alpha: .52)
-                              : BrandColors.secondarySurface.withValues(
-                                  alpha: .95,
-                                ),
-                          amplitude: 3.2,
-                          frequency: 1.6,
-                        ),
-                      ),
-                    ),
-                  if (waveFill > 0.05 && level < 0.98)
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: WaveFillPainter(
-                          phase: _wave.value * 2 * math.pi + 1.4,
-                          fill: (waveFill * .7).clamp(0.0, 1.0),
-                          color: Colors.white.withValues(alpha: .2),
-                          amplitude: 2.2,
-                          frequency: 2.1,
-                        ),
-                      ),
-                    ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 280),
-                        switchInCurve: Curves.easeOutBack,
-                        switchOutCurve: Curves.easeIn,
-                        transitionBuilder: (child, animation) =>
-                            ScaleTransition(scale: animation, child: child),
-                        child: Icon(
-                          followingLook
-                              ? Icons.check_rounded
-                              : Icons.add_rounded,
-                          key: ValueKey(followingLook),
-                          size: 14,
-                          color: labelColor,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 220),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: labelColor,
-                          letterSpacing: .2,
-                        ),
-                        child: Text(followingLook ? 'Following' : 'Follow'),
-                      ),
-                    ],
-                  ),
-                ],
+            const SizedBox(width: 4),
+            Text(
+              following ? 'Following' : 'Follow',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: labelColor,
+                letterSpacing: .2,
               ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -981,7 +856,7 @@ class _FollowButtonState extends State<_FollowButton>
 
 /// Adaptive feed media — portrait, square, and landscape each get a natural
 /// frame (clamped like Instagram: 4:5 … 1.91:1) so every size fits cleanly.
-class _MediaSection extends StatefulWidget {
+class _MediaSection extends StatelessWidget {
   const _MediaSection({
     required this.type,
     required this.label,
@@ -994,192 +869,135 @@ class _MediaSection extends StatefulWidget {
   final String imageAsset;
   final double? aspectRatio;
 
-  @override
-  State<_MediaSection> createState() => _MediaSectionState();
-}
-
-class _MediaSectionState extends State<_MediaSection> {
-  static final _ratioCache = <String, double>{};
-
-  double? _naturalRatio;
-
-  @override
-  void initState() {
-    super.initState();
-    _naturalRatio = widget.aspectRatio;
-    if (_naturalRatio == null) _resolveRatio();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MediaSection oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageAsset == widget.imageAsset &&
-        oldWidget.aspectRatio == widget.aspectRatio) {
-      return;
-    }
-    _naturalRatio = widget.aspectRatio;
-    if (_naturalRatio == null) _resolveRatio();
-  }
-
-  Future<void> _resolveRatio() async {
-    final asset = widget.imageAsset;
-    if (asset.isEmpty) {
-      if (mounted) setState(() => _naturalRatio = 16 / 9);
-      return;
-    }
-    final cached = _ratioCache[asset];
-    if (cached != null) {
-      if (mounted) setState(() => _naturalRatio = cached);
-      return;
-    }
-    try {
-      final data = await rootBundle.load(asset);
-      final codec = await ui.instantiateImageCodec(
-        data.buffer.asUint8List(),
-        targetWidth: 64,
-      );
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
-      final ratio = image.width / math.max(image.height, 1);
-      image.dispose();
-      codec.dispose();
-      _ratioCache[asset] = ratio;
-      if (mounted) setState(() => _naturalRatio = ratio);
-    } catch (_) {
-      if (mounted) setState(() => _naturalRatio = 4 / 5);
-    }
-  }
-
   double get _frameRatio {
-    final raw = _naturalRatio ?? 4 / 5;
+    final raw = aspectRatio ?? 4 / 5;
     return raw.clamp(_mediaMinRatio, _mediaMaxRatio);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = widget.type == FeedMediaType.video;
+    final isVideo = type == FeedMediaType.video;
     final ratio = _frameRatio;
+    final screenCap = MediaQuery.sizeOf(context).height * .62;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final idealH = width / ratio;
-        final screenCap = MediaQuery.sizeOf(context).height * .62;
-        final height = math.min(idealH, screenCap);
+        final height = math.min(width / ratio, screenCap);
 
-        return FastTap(
-          onTap: () {},
-          borderRadius: BorderRadius.circular(18),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
+        return RepaintBoundary(
+          child: SizedBox(
             width: width,
             height: height,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withValues(alpha: .4)),
-              color: const Color(0xFF1B1E28),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (widget.imageAsset.isNotEmpty)
-                  FastAssetImage(
-                    asset: widget.imageAsset,
-                    fit: BoxFit.cover,
-                    width: width,
-                    height: height,
-                  )
-                else
-                  const ColoredBox(color: Color(0xFF1B1E28)),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x2E000000),
-                        Color(0x00000000),
-                        Color(0x8C000000),
-                      ],
-                      stops: [0, .45, 1],
-                    ),
-                  ),
-                ),
-                if (isVideo)
-                  Center(
-                    child: Container(
-                      width: 54,
-                      height: 54,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: .4)),
+                color: const Color(0xFF1B1E28),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (imageAsset.isNotEmpty)
+                      FastAssetImage(
+                        asset: imageAsset,
+                        fit: BoxFit.cover,
+                        width: width,
+                        height: height,
+                      )
+                    else
+                      const ColoredBox(color: Color(0xFF1B1E28)),
+                    const DecoratedBox(
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.black.withValues(alpha: .35),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: .55),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x2E000000),
+                            Color(0x00000000),
+                            Color(0x8C000000),
+                          ],
+                          stops: [0, .45, 1],
                         ),
                       ),
-                      child: const Icon(
-                        Icons.play_arrow_rounded,
-                        size: 28,
-                        color: Colors.white,
-                      ),
                     ),
-                  ),
-                Positioned(
-                  left: 12,
-                  top: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      color: Colors.black.withValues(alpha: .4),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: .3),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isVideo
-                              ? Icons.videocam_outlined
-                              : Icons.image_outlined,
-                          size: 12,
-                          color: Colors.white.withValues(alpha: .9),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isVideo ? 'Video' : 'Photo',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white.withValues(alpha: .9),
+                    if (isVideo)
+                      Center(
+                        child: Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withValues(alpha: .35),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .55),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow_rounded,
+                            size: 28,
+                            color: Colors.white,
                           ),
                         ),
-                      ],
+                      ),
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          color: Colors.black.withValues(alpha: .4),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: .3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isVideo
+                                  ? Icons.videocam_outlined
+                                  : Icons.image_outlined,
+                              size: 12,
+                              color: Colors.white.withValues(alpha: .9),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isVideo ? 'Video' : 'Photo',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha: .9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                Positioned(
-                  left: 14,
-                  bottom: 12,
-                  right: 14,
-                  child: Text(
-                    widget.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: .92),
+                    Positioned(
+                      left: 14,
+                      bottom: 12,
+                      right: 14,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: .92),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );

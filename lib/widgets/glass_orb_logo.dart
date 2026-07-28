@@ -4,13 +4,15 @@ import '../theme/brand_colors.dart';
 
 /// Small glass sphere with the Innovator mark — used on auth screens.
 class GlassOrbLogo extends StatelessWidget {
-  const GlassOrbLogo({super.key});
+  const GlassOrbLogo({super.key, this.size = 66});
+
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 66,
-      height: 66,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: BrandColors.secondarySurface,

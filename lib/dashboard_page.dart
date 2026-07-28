@@ -6,8 +6,9 @@ import 'cart_page.dart';
 import 'chat_page.dart';
 import 'elearning_page.dart';
 import 'login_page.dart';
-import 'notifications_sheet.dart';
+import 'notifications_page.dart';
 import 'post_page.dart';
+import 'privacy_policy_page.dart';
 import 'profile_page.dart';
 import 'search_section.dart';
 import 'shop_page.dart';
@@ -52,6 +53,7 @@ class _DashboardPageState extends State<DashboardPage> {
   int _selected = -1;
   bool _showCart = false;
   bool _showProfile = false;
+  bool _showNotifications = false;
   bool _dragging = false;
   Offset _dragPos = Offset.zero;
   NavDock? _previewDock;
@@ -82,6 +84,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _selected = index;
       _showCart = false;
       _showProfile = false;
+      _showNotifications = false;
     });
   }
 
@@ -97,11 +100,41 @@ class _DashboardPageState extends State<DashboardPage> {
       _selected = -1;
       _showCart = false;
       _showProfile = false;
+      _showNotifications = false;
     });
     if (_scroll.hasClients) {
       _scroll.animateTo(
         0,
         duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _openFromNotification(NotificationDestination destination) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _showNotifications = false;
+      _showCart = false;
+      _showProfile = false;
+      switch (destination) {
+        case NotificationDestination.feed:
+          _selected = -1;
+        case NotificationDestination.chat:
+          _selected = _chatIndex;
+        case NotificationDestination.elearning:
+          _selected = _learnIndex;
+        case NotificationDestination.shop:
+          _selected = _shopIndex;
+        case NotificationDestination.profile:
+          _showProfile = true;
+          _selected = -1;
+      }
+    });
+    if (destination == NotificationDestination.feed && _scroll.hasClients) {
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 420),
         curve: Curves.easeOutCubic,
       );
     }
@@ -178,19 +211,62 @@ class _DashboardPageState extends State<DashboardPage> {
         onProfile: () => setState(() {
           _showProfile = true;
           _showCart = false;
+          _showNotifications = false;
           _selected = -1;
         }),
         onShop: () => setState(() {
           _selected = _shopIndex;
           _showCart = false;
           _showProfile = false;
+          _showNotifications = false;
         }),
         onELearning: () => setState(() {
           _selected = _learnIndex;
           _showCart = false;
           _showProfile = false;
+          _showNotifications = false;
         }),
-        onNotifications: () => showNotificationsSheet(context),
+        onNotifications: () => setState(() {
+          _showNotifications = true;
+          _showProfile = false;
+          _showCart = false;
+          _selected = -1;
+        }),
+        onPrivacy: () {
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              transitionDuration: const Duration(milliseconds: 380),
+              reverseTransitionDuration: const Duration(milliseconds: 280),
+              pageBuilder: (_, animation, __) => FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                ),
+                child: const PrivacyPolicyPage(),
+              ),
+            ),
+          );
+        },
+        onKmsChanged: (enabled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              backgroundColor: _ink.withValues(alpha: .92),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              content: Text(
+                enabled ? 'Switched to KMS' : 'Back to Innovator',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              duration: const Duration(milliseconds: 1600),
+            ),
+          );
+        },
       ),
       // Keys keep every layer's element stable when the glow/ghost layers
       // appear mid-drag — otherwise the nav bar's gesture detector would
@@ -227,7 +303,13 @@ class _DashboardPageState extends State<DashboardPage> {
                         child: child,
                       ),
                     ),
-                    child: _showProfile
+                    child: _showNotifications
+                        ? NotificationsSection(
+                            key: const ValueKey('notifications'),
+                            contentPadding: _feedPadding,
+                            onOpen: _openFromNotification,
+                          )
+                        : _showProfile
                         ? ProfileSection(
                             key: const ValueKey('profile'),
                             name: _displayName,
@@ -243,7 +325,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         ? ShopSection(
                             key: const ValueKey('shop'),
                             contentPadding: _feedPadding,
-                            onCartTap: () => setState(() => _showCart = true),
+                            onCartTap: () => setState(() {
+                              _showCart = true;
+                              _showNotifications = false;
+                              _showProfile = false;
+                            }),
                           )
                         : _selected == _searchIndex
                         ? SearchSection(

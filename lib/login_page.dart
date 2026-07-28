@@ -79,49 +79,53 @@ class _LoginPageState extends State<LoginPage>
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 child: FadeTransition(
                   opacity: _fade,
                   child: SlideTransition(
                     position: _slide,
                     child: GlassCard(
+                      padding: const EdgeInsets.fromLTRB(22, 16, 22, 14),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const GlassOrbLogo(),
-                          const SizedBox(height: 22),
+                          const GlassOrbLogo(size: 52),
+                          const SizedBox(height: 8),
                           const Text(
                             'Welcome back',
                             style: TextStyle(
-                              fontSize: 27,
+                              fontSize: 24,
                               fontWeight: FontWeight.w600,
                               letterSpacing: -.5,
+                              height: 1.15,
                               color: _ink,
                             ),
                           ),
-                          const SizedBox(height: 7),
+                          const SizedBox(height: 2),
                           Text(
                             'Sign in to continue to Innovator',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 13.5,
+                              height: 1.2,
                               color: _ink.withValues(alpha: .5),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 12),
                           GlassTextField(
                             controller: _emailController,
                             hint: 'Email',
                             icon: Icons.alternate_email_rounded,
                             keyboardType: TextInputType.emailAddress,
+                            dense: true,
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 8),
                           GlassTextField(
                             controller: _passwordController,
                             hint: 'Password',
                             icon: Icons.key_rounded,
                             obscure: true,
+                            dense: true,
                           ),
-                          const SizedBox(height: 12),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
@@ -129,29 +133,36 @@ class _LoginPageState extends State<LoginPage>
                               style: TextButton.styleFrom(
                                 foregroundColor: _ink.withValues(alpha: .55),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
+                                  horizontal: 4,
+                                  vertical: 0,
                                 ),
                                 minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
                               ),
                               child: const Text(
                                 'Forgot password?',
-                                style: TextStyle(fontSize: 13),
+                                style: TextStyle(fontSize: 12.5),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          LiquidButton(label: 'Sign In', onTap: _signIn),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 8),
+                          LiquidButton(
+                            label: 'Sign In',
+                            dense: true,
+                            onTap: _signIn,
+                          ),
+                          const SizedBox(height: 8),
                           const _OrDivider(),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 8),
                           LiquidButton(
                             label: 'Continue with Google',
                             dark: false,
+                            dense: true,
                             leading: const GoogleLogo(),
                             onTap: _signInWithGoogle,
                           ),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 10),
                           Wrap(
                             alignment: WrapAlignment.center,
                             crossAxisAlignment: WrapCrossAlignment.center,
@@ -159,7 +170,7 @@ class _LoginPageState extends State<LoginPage>
                               Text(
                                 "Don't have an account? ",
                                 style: TextStyle(
-                                  fontSize: 13.5,
+                                  fontSize: 13,
                                   color: _ink.withValues(alpha: .5),
                                 ),
                               ),
@@ -181,13 +192,13 @@ class _LoginPageState extends State<LoginPage>
                                 },
                                 child: const Padding(
                                   padding: EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 8,
+                                    horizontal: 4,
+                                    vertical: 2,
                                   ),
                                   child: Text(
                                     'Sign up',
                                     style: TextStyle(
-                                      fontSize: 13.5,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                       color: _ink,
                                     ),
@@ -221,10 +232,10 @@ class _OrDivider extends StatelessWidget {
           child: Container(height: 1, color: _ink.withValues(alpha: .12)),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
             'or',
-            style: TextStyle(fontSize: 12.5, color: _ink.withValues(alpha: .4)),
+            style: TextStyle(fontSize: 12, color: _ink.withValues(alpha: .4)),
           ),
         ),
         Expanded(

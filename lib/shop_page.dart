@@ -872,11 +872,59 @@ class _ProductCard extends StatefulWidget {
 class _ProductCardState extends State<_ProductCard> {
   bool _added = false;
   Timer? _resetTimer;
+  Timer? _autoScroll;
+  PageController? _imageController;
+  int _imageIndex = 0;
+  bool _userDragging = false;
+
+  bool get _multiImage => widget.product.images.length > 1;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_multiImage) {
+      _imageController = PageController();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startAutoScroll();
+      });
+    }
+  }
 
   @override
   void dispose() {
     _resetTimer?.cancel();
+    _autoScroll?.cancel();
+    _imageController?.dispose();
     super.dispose();
+  }
+
+  void _startAutoScroll() {
+    if (!_multiImage) return;
+    _autoScroll?.cancel();
+    // Stagger periods slightly so grid cards don't flip in sync.
+    final periodMs = 3000 + (widget.product.name.hashCode.abs() % 900);
+    _autoScroll = Timer.periodic(Duration(milliseconds: periodMs), (_) {
+      if (!mounted || _userDragging) return;
+      final controller = _imageController;
+      if (controller == null || !controller.hasClients) return;
+      final count = widget.product.images.length;
+      final next = (_imageIndex + 1) % count;
+      controller.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInOutCubic,
+      );
+    });
+  }
+
+  void _pauseAutoScroll() {
+    _userDragging = true;
+    _autoScroll?.cancel();
+  }
+
+  void _resumeAutoScroll() {
+    _userDragging = false;
+    _startAutoScroll();
   }
 
   void _handleAdd() {
@@ -937,7 +985,7 @@ class _ProductCardState extends State<_ProductCard> {
       borderRadius: BorderRadius.circular(24),
       child: FastGlass(
         borderRadius: BorderRadius.circular(24),
-        padding: const EdgeInsets.all(11),
+        padding: const EdgeInsets.all(9),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -949,13 +997,42 @@ class _ProductCardState extends State<_ProductCard> {
                     return Stack(
                       fit: StackFit.expand,
                       children: [
-                        FastAssetImage(
-                          asset: product.imageAsset,
-                          fit: BoxFit.cover,
-                          width: constraints.maxWidth,
-                          height: constraints.maxHeight,
-                          errorColor: product.tint.withValues(alpha: .2),
-                        ),
+                        if (_multiImage)
+                          NotificationListener<ScrollNotification>(
+                            onNotification: (n) {
+                              if (n is ScrollStartNotification &&
+                                  n.dragDetails != null) {
+                                _pauseAutoScroll();
+                              } else if (n is ScrollEndNotification) {
+                                _resumeAutoScroll();
+                              }
+                              return false;
+                            },
+                            child: PageView.builder(
+                              controller: _imageController,
+                              itemCount: product.images.length,
+                              onPageChanged: (i) =>
+                                  setState(() => _imageIndex = i),
+                              itemBuilder: (context, index) {
+                                return FastAssetImage(
+                                  asset: product.images[index],
+                                  fit: BoxFit.cover,
+                                  width: constraints.maxWidth,
+                                  height: constraints.maxHeight,
+                                  errorColor:
+                                      product.tint.withValues(alpha: .2),
+                                );
+                              },
+                            ),
+                          )
+                        else
+                          FastAssetImage(
+                            asset: product.imageAsset,
+                            fit: BoxFit.cover,
+                            width: constraints.maxWidth,
+                            height: constraints.maxHeight,
+                            errorColor: product.tint.withValues(alpha: .2),
+                          ),
                         Positioned(
                           top: 7,
                           right: 7,
@@ -989,13 +1066,43 @@ class _ProductCardState extends State<_ProductCard> {
                             ),
                           ),
                         ),
+                        if (_multiImage)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 7,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                for (var i = 0;
+                                    i < product.images.length;
+                                    i++)
+                                  AnimatedContainer(
+                                    duration:
+                                        const Duration(milliseconds: 200),
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 2,
+                                    ),
+                                    width: i == _imageIndex ? 12 : 5,
+                                    height: 5,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(5),
+                                      color: Colors.white.withValues(
+                                        alpha:
+                                            i == _imageIndex ? .95 : .4,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                       ],
                     );
                   },
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Text(
               product.name,
               maxLines: 1,
@@ -1006,12 +1113,12 @@ class _ProductCardState extends State<_ProductCard> {
                 color: _ink,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Text(
               product.category,
               style: const TextStyle(fontSize: 11, color: _muted),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Row(
               children: [
                 FastTap(
@@ -1095,11 +1202,51 @@ class _ProductDetailSheetState extends State<_ProductDetailSheet> {
   final _pageController = PageController();
   int _imageIndex = 0;
   bool _added = false;
+  Timer? _autoScroll;
+  bool _userDragging = false;
+
+  bool get _multiImage => widget.product.images.length > 1;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_multiImage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startAutoScroll();
+      });
+    }
+  }
 
   @override
   void dispose() {
+    _autoScroll?.cancel();
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _startAutoScroll() {
+    if (!_multiImage) return;
+    _autoScroll?.cancel();
+    _autoScroll = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || _userDragging) return;
+      if (!_pageController.hasClients) return;
+      final next = (_imageIndex + 1) % widget.product.images.length;
+      _pageController.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInOutCubic,
+      );
+    });
+  }
+
+  void _pauseAutoScroll() {
+    _userDragging = true;
+    _autoScroll?.cancel();
+  }
+
+  void _resumeAutoScroll() {
+    _userDragging = false;
+    _startAutoScroll();
   }
 
   void _add() {
@@ -1145,21 +1292,32 @@ class _ProductDetailSheetState extends State<_ProductDetailSheet> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            PageView.builder(
-                              controller: _pageController,
-                              itemCount: product.images.length,
-                              onPageChanged: (i) =>
-                                  setState(() => _imageIndex = i),
-                              itemBuilder: (context, index) {
-                                return FastAssetImage(
-                                  asset: product.images[index],
-                                  fit: BoxFit.cover,
-                                  width: width,
-                                  height: width / 1.15,
-                                  errorColor:
-                                      product.tint.withValues(alpha: .2),
-                                );
+                            NotificationListener<ScrollNotification>(
+                              onNotification: (n) {
+                                if (n is ScrollStartNotification &&
+                                    n.dragDetails != null) {
+                                  _pauseAutoScroll();
+                                } else if (n is ScrollEndNotification) {
+                                  _resumeAutoScroll();
+                                }
+                                return false;
                               },
+                              child: PageView.builder(
+                                controller: _pageController,
+                                itemCount: product.images.length,
+                                onPageChanged: (i) =>
+                                    setState(() => _imageIndex = i),
+                                itemBuilder: (context, index) {
+                                  return FastAssetImage(
+                                    asset: product.images[index],
+                                    fit: BoxFit.cover,
+                                    width: width,
+                                    height: width / 1.15,
+                                    errorColor:
+                                        product.tint.withValues(alpha: .2),
+                                  );
+                                },
+                              ),
                             ),
                             Positioned(
                               top: 12,
@@ -1238,11 +1396,14 @@ class _ProductDetailSheetState extends State<_ProductDetailSheet> {
                           final selected = index == _imageIndex;
                           return FastTap(
                             onTap: () {
-                              _pageController.animateToPage(
+                              _pauseAutoScroll();
+                              _pageController
+                                  .animateToPage(
                                 index,
                                 duration: const Duration(milliseconds: 280),
                                 curve: Curves.easeOutCubic,
-                              );
+                              )
+                                  .whenComplete(_resumeAutoScroll);
                             },
                             borderRadius: BorderRadius.circular(12),
                             child: AnimatedContainer(

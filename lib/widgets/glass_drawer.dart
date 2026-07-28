@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/brand_colors.dart';
 import 'liquid_pressable.dart';
@@ -30,6 +31,8 @@ class GlassDrawer extends StatelessWidget {
     this.onELearning,
     this.onProfile,
     this.onNotifications,
+    this.onPrivacy,
+    this.onKmsChanged,
   });
 
   final String name;
@@ -39,6 +42,8 @@ class GlassDrawer extends StatelessWidget {
   final VoidCallback? onELearning;
   final VoidCallback? onProfile;
   final VoidCallback? onNotifications;
+  final VoidCallback? onPrivacy;
+  final ValueChanged<bool>? onKmsChanged;
 
   /// Let the liquid wobble play before the drawer slides away.
   void _closeThen(BuildContext context, VoidCallback? action) {
@@ -71,9 +76,10 @@ class GlassDrawer extends StatelessWidget {
       label: 'E-learning',
       onTap: onELearning,
     ),
-    const GlassDrawerItem(
+    GlassDrawerItem(
       icon: Icons.shield_outlined,
       label: 'Privacy & Policy',
+      onTap: onPrivacy,
     ),
     const GlassDrawerItem(icon: Icons.settings_outlined, label: 'Settings'),
     const GlassDrawerItem(icon: Icons.help_outline_rounded, label: 'FAQ'),
@@ -118,6 +124,10 @@ class GlassDrawer extends StatelessWidget {
                         onTap: onProfile == null
                             ? null
                             : () => _closeThen(context, onProfile),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                        child: _KmsSwitchRow(onChanged: onKmsChanged),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -398,6 +408,93 @@ class _DrawerInnovatorBadge extends StatelessWidget {
           ),
           SizedBox(width: 3),
           Icon(Icons.verified_rounded, size: 12, color: Colors.white),
+        ],
+      ),
+    );
+  }
+}
+
+/// Liquid glass toggle for switching into KMS mode.
+class _KmsSwitchRow extends StatefulWidget {
+  const _KmsSwitchRow({this.onChanged});
+
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  State<_KmsSwitchRow> createState() => _KmsSwitchRowState();
+}
+
+class _KmsSwitchRowState extends State<_KmsSwitchRow> {
+  bool _enabled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(16);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        color: Colors.white.withValues(alpha: .12),
+        border: Border.all(color: Colors.white.withValues(alpha: .22)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: (_enabled ? BrandColors.accent : Colors.white)
+                  .withValues(alpha: _enabled ? .22 : .14),
+              border: Border.all(color: Colors.white.withValues(alpha: .22)),
+            ),
+            child: Icon(
+              Icons.swap_horiz_rounded,
+              size: 18,
+              color: _enabled
+                  ? BrandColors.accent
+                  : _ink.withValues(alpha: .7),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _enabled ? 'KMS mode' : 'Switch to KMS',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: _ink.withValues(alpha: .85),
+                    letterSpacing: -.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _enabled ? 'Tap to return to Innovator' : 'Open knowledge mode',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: _ink.withValues(alpha: .45),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: _enabled,
+            activeThumbColor: Colors.white,
+            activeTrackColor: BrandColors.accent,
+            inactiveThumbColor: Colors.white,
+            inactiveTrackColor: _ink.withValues(alpha: .18),
+            onChanged: (value) {
+              HapticFeedback.selectionClick();
+              setState(() => _enabled = value);
+              widget.onChanged?.call(value);
+            },
+          ),
         ],
       ),
     );

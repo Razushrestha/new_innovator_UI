@@ -13,6 +13,7 @@ class GlassTextField extends StatefulWidget {
     this.controller,
     this.obscure = false,
     this.keyboardType,
+    this.dense = false,
   });
 
   final String hint;
@@ -20,6 +21,9 @@ class GlassTextField extends StatefulWidget {
   final TextEditingController? controller;
   final bool obscure;
   final TextInputType? keyboardType;
+
+  /// Slightly shorter field for compact auth layouts.
+  final bool dense;
 
   @override
   State<GlassTextField> createState() => _GlassTextFieldState();
@@ -78,29 +82,33 @@ class _GlassTextFieldState extends State<GlassTextField> {
         cursorColor: BrandColors.accent,
         style: const TextStyle(fontSize: 15, letterSpacing: .2, color: _ink),
         decoration: InputDecoration(
+          isDense: widget.dense,
           hintText: widget.hint,
           hintStyle: TextStyle(color: _ink.withValues(alpha: .35)),
           prefixIcon: Icon(
             widget.icon,
-            size: 20,
+            size: widget.dense ? 18 : 20,
             color: _ink.withValues(alpha: _focused ? .75 : .4),
           ),
           suffixIcon: widget.obscure
               ? IconButton(
                   onPressed: () => setState(() => _obscured = !_obscured),
+                  visualDensity: widget.dense
+                      ? VisualDensity.compact
+                      : VisualDensity.standard,
                   icon: Icon(
                     _obscured
                         ? Icons.visibility_off_rounded
                         : Icons.visibility_rounded,
-                    size: 19,
+                    size: widget.dense ? 18 : 19,
                     color: _ink.withValues(alpha: .4),
                   ),
                 )
               : null,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
+          contentPadding: EdgeInsets.symmetric(
             horizontal: 18,
-            vertical: 16.5,
+            vertical: widget.dense ? 12 : 16.5,
           ),
         ),
       ),

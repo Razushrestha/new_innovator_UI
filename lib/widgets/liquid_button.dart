@@ -19,12 +19,16 @@ class LiquidButton extends StatelessWidget {
     required this.onTap,
     this.dark = true,
     this.leading,
+    this.dense = false,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool dark;
   final Widget? leading;
+
+  /// Tighter vertical padding for compact auth layouts.
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +54,7 @@ class LiquidButton extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 17.5),
+          padding: EdgeInsets.symmetric(vertical: dense ? 13 : 17.5),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(23),
             gradient: LinearGradient(

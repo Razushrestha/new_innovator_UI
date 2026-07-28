@@ -23,7 +23,15 @@ class _AnimatedBlobBackgroundState extends State<AnimatedBlobBackground>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 36),
-  )..repeat();
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.animate) {
+      _controller.repeat();
+    }
+  }
 
   @override
   void didUpdateWidget(covariant AnimatedBlobBackground oldWidget) {
