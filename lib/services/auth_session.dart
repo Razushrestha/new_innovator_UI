@@ -17,6 +17,9 @@ class AuthSession {
   String? username;
   String? email;
 
+  /// Set after a successful profile ensure so we skip repeat POSTs.
+  bool profileEnsured = false;
+
   bool get isSignedIn =>
       accessToken != null && accessToken!.isNotEmpty && userId != null;
 
@@ -57,6 +60,7 @@ class AuthSession {
     userId = null;
     username = null;
     email = null;
+    profileEnsured = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kAccess);
     await prefs.remove(_kRefresh);

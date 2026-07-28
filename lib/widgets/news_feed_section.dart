@@ -4,7 +4,15 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/api_response.dart';
+import '../models/feed_models.dart';
 import '../profile_page.dart';
+import '../config/api_config.dart';
+import '../services/auth_session.dart';
+import '../services/feed_api.dart';
+import '../services/memory_cache.dart';
+import '../services/post_view_recorder.dart';
+import '../services/profile_api.dart';
 import '../theme/brand_colors.dart';
 import 'fast_glass.dart';
 import 'liquid_pressable.dart';
@@ -18,233 +26,8 @@ const _repostGreen = Color(0xFF17A275);
 const _mediaMinRatio = 4 / 5;
 const _mediaMaxRatio = 1.91;
 
-enum FeedMediaType { none, image, video }
-
-class FeedPost {
-  const FeedPost({
-    required this.author,
-    required this.profession,
-    required this.time,
-    required this.status,
-    this.mediaType = FeedMediaType.none,
-    this.mediaLabel = '',
-    this.imageAsset = '',
-    this.aspectRatio,
-    required this.likes,
-    required this.comments,
-    required this.reposts,
-  });
-
-  final String author;
-  final String profession;
-  final String time;
-  final String status;
-  final FeedMediaType mediaType;
-  final String mediaLabel;
-
-  /// Relative path under the project `Assets/` folder.
-  final String imageAsset;
-
-  /// Natural width ÷ height. When null, resolved from the asset.
-  final double? aspectRatio;
-  final int likes;
-  final int comments;
-  final int reposts;
-}
-
-const _samplePosts = [
-  FeedPost(
-    author: 'Aarav Sharma',
-    profession: 'Product Designer',
-    time: '25m',
-    status:
-        'Just shipped the new liquid glass onboarding flow. The spring physics '
-        'on the buttons make such a difference — every tap feels alive. We also '
-        'tuned the wave fill so it settles softer on release, and the dockable '
-        'nav now remembers your last edge for the whole session.',
-    mediaType: FeedMediaType.video,
-    mediaLabel: 'Design walkthrough · 2:14',
-    imageAsset: 'Assets/feed/post_01.jpg',
-    aspectRatio: 16 / 9,
-    likes: 128,
-    comments: 24,
-    reposts: 18,
-  ),
-  FeedPost(
-    author: 'Maya Chen',
-    profession: 'Innovation Lead',
-    time: '2h',
-    status:
-        'Our team hit the weekly goal three days early. Huge thanks to everyone '
-        'who jumped on the sprint review — recap notes are up.',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Sprint review recap',
-    imageAsset: 'Assets/feed/post_02.jpg',
-    aspectRatio: 4 / 5,
-    likes: 86,
-    comments: 12,
-    reposts: 7,
-  ),
-  FeedPost(
-    author: 'Innovator Team',
-    profession: 'Official',
-    time: '1d',
-    status:
-        'New in the Shop: premium templates for pitch decks and product specs. '
-        'E-learning members get early access this week.',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Premium templates · Shop',
-    imageAsset: 'Assets/feed/post_03.jpg',
-    aspectRatio: 1,
-    likes: 214,
-    comments: 41,
-    reposts: 39,
-  ),
-  FeedPost(
-    author: 'Priya Thapa',
-    profession: 'Founder',
-    time: '3h',
-    status:
-        'Closed our seed round today. Grateful for every mentor who pushed us '
-        'to tighten the pitch and ship the MVP before fundraising.',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Seed close celebration',
-    imageAsset: 'Assets/feed/post_04.jpg',
-    aspectRatio: 3 / 2,
-    likes: 342,
-    comments: 58,
-    reposts: 44,
-  ),
-  FeedPost(
-    author: 'Rohan KC',
-    profession: 'Flutter Dev',
-    time: '4h',
-    status:
-        'BackdropFilter + soft wave fill is the combo. Sharing a short clip of '
-        'the dockable nav morphing between docks.',
-    mediaType: FeedMediaType.video,
-    mediaLabel: 'Nav morph · 0:48',
-    imageAsset: 'Assets/feed/post_05.jpg',
-    aspectRatio: 9 / 16,
-    likes: 167,
-    comments: 31,
-    reposts: 22,
-  ),
-  FeedPost(
-    author: 'Sneha Rai',
-    profession: 'UX Researcher',
-    time: '5h',
-    status:
-        'Five user interviews later: people love the liquid press feedback but '
-        'want clearer labels on the shop filters. Iterating tonight.',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Research board',
-    imageAsset: 'Assets/feed/post_06.jpg',
-    aspectRatio: 16 / 9,
-    likes: 94,
-    comments: 19,
-    reposts: 8,
-  ),
-  FeedPost(
-    author: 'Kabir Joshi',
-    profession: 'Growth Marketer',
-    time: '6h',
-    status:
-        'Launch checklist pinned: waitlist → drip sequence → Khalti checkout '
-        'smoke test. If you want the Notion template, ping me. Also covering '
-        'analytics events, invite codes, and a soft launch window for early '
-        'Innovators before we open the waitlist to everyone next week.',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Launch checklist',
-    imageAsset: 'Assets/feed/post_07.jpg',
-    aspectRatio: 5 / 4,
-    likes: 121,
-    comments: 27,
-    reposts: 16,
-  ),
-  FeedPost(
-    author: 'Anisha Gurung',
-    profession: 'Brand Designer',
-    time: '8h',
-    status:
-        'Explored a warmer gold accent on deep navy. Feels premium without '
-        'shouting — pairing it with the center logo mark next.',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Brand exploration',
-    imageAsset: 'Assets/feed/post_08.jpg',
-    aspectRatio: 4 / 5,
-    likes: 203,
-    comments: 36,
-    reposts: 29,
-  ),
-  FeedPost(
-    author: 'Nischal Adhikari',
-    profession: 'Product Manager',
-    time: '10h',
-    status:
-        'Roadmap update: e-learning certificates, collaborator invites, and '
-        'offline course downloads are next on the board.',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Q3 roadmap',
-    imageAsset: 'Assets/feed/post_09.jpg',
-    aspectRatio: 21 / 9,
-    likes: 156,
-    comments: 22,
-    reposts: 14,
-  ),
-  FeedPost(
-    author: 'Elena Voss',
-    profession: 'AI Engineer',
-    time: '12h',
-    status:
-        'Prototyped an on-device summarizer for course notes. Still rough, but '
-        'the latency already feels snappy enough for demos.',
-    mediaType: FeedMediaType.video,
-    mediaLabel: 'AI notes demo · 1:05',
-    imageAsset: 'Assets/feed/post_10.jpg',
-    aspectRatio: 1,
-    likes: 278,
-    comments: 47,
-    reposts: 33,
-  ),
-  FeedPost(
-    author: 'Samir Basnet',
-    profession: 'Community Lead',
-    time: '18h',
-    status:
-        'Kathmandu innovators meetup this Saturday — lightning talks, open '
-        'desk critiques, and a liquid-UI build challenge. Who\'s in?',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Meetup poster',
-    imageAsset: 'Assets/feed/post_11.jpg',
-    aspectRatio: 3 / 4,
-    likes: 189,
-    comments: 63,
-    reposts: 41,
-  ),
-  FeedPost(
-    author: 'Innovator Team',
-    profession: 'Official',
-    time: '2d',
-    status:
-        'Tip of the week: long-press the logo orb to drag the nav to any edge. '
-        'Your dock preference sticks for the session.',
-    mediaType: FeedMediaType.image,
-    mediaLabel: 'Pro tip · Dock anywhere',
-    imageAsset: 'Assets/feed/post_12.jpg',
-    aspectRatio: 16 / 9,
-    likes: 401,
-    comments: 72,
-    reposts: 88,
-  ),
-];
-
-/// News feed in the liquid glass language: frosted post cards with an
-/// author header (+Follow), status text, a media area, and springy
-/// like / comment / repost / share actions.
-///
-/// Built as a lazy [ListView] so off-screen posts are not painted.
-class NewsFeedSection extends StatelessWidget {
+/// News feed backed by http://36.253.137.34:8012 (`/api/feed`).
+class NewsFeedSection extends StatefulWidget {
   const NewsFeedSection({
     super.key,
     this.controller,
@@ -255,44 +38,219 @@ class NewsFeedSection extends StatelessWidget {
   final EdgeInsets padding;
 
   @override
+  State<NewsFeedSection> createState() => _NewsFeedSectionState();
+}
+
+class _NewsFeedSectionState extends State<NewsFeedSection> {
+  final _feedApi = FeedApi();
+  final _posts = <FeedPostDto>[];
+  var _page = 1;
+  var _loading = true;
+  var _loadingMore = false;
+  var _hasMore = true;
+  String? _error;
+  ScrollController? _ownedController;
+
+  ScrollController get _scroll =>
+      widget.controller ?? (_ownedController ??= ScrollController());
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+    _load(reset: true);
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _ownedController?.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_hasMore || _loadingMore || _loading) return;
+    final pos = _scroll.position;
+    if (pos.pixels > pos.maxScrollExtent - 480) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _load({required bool reset}) async {
+    if (reset) {
+      final cached = MemoryCache.get<List<FeedPostDto>>('feed.page1');
+      setState(() {
+        _error = null;
+        _page = 1;
+        _hasMore = true;
+        if (cached != null && cached.isNotEmpty && _posts.isEmpty) {
+          _posts.addAll(cached);
+          _loading = false;
+        } else {
+          _loading = _posts.isEmpty;
+        }
+      });
+    }
+    try {
+      final page = await _feedApi.getFeed(
+        page: _page,
+        pageSize: ApiConfig.feedPageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (reset) {
+          _posts
+            ..clear()
+            ..addAll(page.results);
+          MemoryCache.set(
+            'feed.page1',
+            List<FeedPostDto>.from(page.results),
+            ttl: const Duration(minutes: 2),
+          );
+        } else {
+          _posts.addAll(page.results);
+        }
+        _hasMore = page.hasMore;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        if (_posts.isEmpty) _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        if (_posts.isEmpty) _error = 'Could not load feed';
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (!_hasMore || _loadingMore) return;
+    setState(() {
+      _loadingMore = true;
+      _page += 1;
+    });
+    await _load(reset: false);
+  }
+
+  void _replacePost(FeedPostDto updated) {
+    final i = _posts.indexWhere((p) => p.id == updated.id);
+    if (i < 0) return;
+    setState(() => _posts[i] = updated);
+  }
+
+  void _removePost(String id) {
+    setState(() => _posts.removeWhere((p) => p.id == id));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final cacheExtent = MediaQuery.sizeOf(context).height * 1.5;
-    return ListView.builder(
-      controller: controller,
-      padding: padding,
-      itemCount: _samplePosts.length,
-      cacheExtent: cacheExtent,
-      physics: const ClampingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
-      addAutomaticKeepAlives: false,
-      addRepaintBoundaries: true,
-      addSemanticIndexes: false,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: index == _samplePosts.length - 1 ? 0 : 12,
+    if (_loading && _posts.isEmpty) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
+    }
+    if (_error != null && _posts.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!, textAlign: TextAlign.center),
+              TextButton(
+                onPressed: () => _load(reset: true),
+                child: const Text('Retry'),
+              ),
+            ],
           ),
-          child: _FeedCard(post: _samplePosts[index]),
-        );
-      },
+        ),
+      );
+    }
+
+    final cacheExtent = MediaQuery.sizeOf(context).height * 1.5;
+    final itemCount = _posts.length + (_loadingMore ? 1 : 0);
+
+    return RefreshIndicator(
+      onRefresh: () => _load(reset: true),
+      child: ListView.builder(
+        controller: _scroll,
+        padding: widget.padding,
+        itemCount: itemCount == 0 ? 1 : itemCount,
+        cacheExtent: cacheExtent,
+        physics: const ClampingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        addAutomaticKeepAlives: false,
+        addRepaintBoundaries: true,
+        addSemanticIndexes: false,
+        itemBuilder: (context, index) {
+          if (_posts.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.only(top: 48),
+              child: Center(child: Text('No posts yet — be the first.')),
+            );
+          }
+          if (index >= _posts.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                ),
+              ),
+            );
+          }
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: index == _posts.length - 1 && !_loadingMore ? 0 : 12,
+            ),
+            child: _FeedCard(
+              post: _posts[index],
+              onChanged: _replacePost,
+              onDeleted: _removePost,
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
 class _FeedCard extends StatefulWidget {
-  const _FeedCard({required this.post});
+  const _FeedCard({
+    required this.post,
+    required this.onChanged,
+    required this.onDeleted,
+  });
 
-  final FeedPost post;
+  final FeedPostDto post;
+  final ValueChanged<FeedPostDto> onChanged;
+  final ValueChanged<String> onDeleted;
 
   @override
   State<_FeedCard> createState() => _FeedCardState();
 }
 
 class _FeedCardState extends State<_FeedCard> {
-  bool _liked = false;
-  bool _reposted = false;
-  bool _following = false;
+  final _feedApi = FeedApi();
+  final _profileApi = ProfileApi();
+  bool _busy = false;
+
+  FeedPostDto get post => widget.post;
+
+  @override
+  void initState() {
+    super.initState();
+    PostViewRecorder.schedule(post.id);
+  }
 
   Future<void> _openPostMenu(BuildContext buttonContext) async {
     HapticFeedback.selectionClick();
@@ -308,16 +266,39 @@ class _FeedCardState extends State<_FeedCard> {
 
     switch (action) {
       case _FeedMenuAction.repost:
-        HapticFeedback.lightImpact();
-        setState(() => _reposted = !_reposted);
-        _toast(_reposted ? 'Reposted' : 'Repost removed');
+        await _repost();
       case _FeedMenuAction.copy:
-        await Clipboard.setData(ClipboardData(text: widget.post.status));
+        await Clipboard.setData(
+          ClipboardData(text: post.content ?? ''),
+        );
         HapticFeedback.selectionClick();
         _toast('Copied');
       case _FeedMenuAction.block:
         HapticFeedback.mediumImpact();
-        _toast('Blocked ${widget.post.author}');
+        try {
+          await _profileApi.block(post.userId);
+          _toast('Blocked ${post.displayAuthor}');
+        } on ApiException catch (e) {
+          _toast(e.message);
+        }
+      case _FeedMenuAction.delete:
+        await _deleteOwnPost();
+    }
+  }
+
+  Future<void> _repost() async {
+    HapticFeedback.lightImpact();
+    try {
+      await _feedApi.createPost(
+        content: 'Reposted',
+        sharedPostId: post.id,
+      );
+      widget.onChanged(
+        post.copyWith(shareCount: post.shareCount + 1),
+      );
+      _toast('Reposted');
+    } on ApiException catch (e) {
+      _toast(e.message);
     }
   }
 
@@ -350,7 +331,11 @@ class _FeedCardState extends State<_FeedCard> {
         reverseTransitionDuration: const Duration(milliseconds: 280),
         pageBuilder: (_, animation, __) => FadeTransition(
           opacity: animation,
-          child: AuthorProfilePage(name: widget.post.author),
+          child: AuthorProfilePage(
+            name: post.displayAuthor,
+            authUserId: post.userId,
+            username: post.username,
+          ),
         ),
       ),
     );
@@ -358,9 +343,9 @@ class _FeedCardState extends State<_FeedCard> {
 
   void _openAvatarFullscreen() {
     HapticFeedback.selectionClick();
-    final letter = widget.post.author.isEmpty
+    final letter = post.displayAuthor.isEmpty
         ? '?'
-        : widget.post.author[0].toUpperCase();
+        : post.displayAuthor[0].toUpperCase();
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -370,168 +355,293 @@ class _FeedCardState extends State<_FeedCard> {
         reverseTransitionDuration: const Duration(milliseconds: 240),
         pageBuilder: (_, animation, __) => _AvatarLightbox(
           letter: letter,
-          name: widget.post.author,
-          heroTag: 'feed-avatar-${widget.post.author}-${widget.post.time}',
+          name: post.displayAuthor,
+          imageUrl: post.avatar,
+          heroTag: 'feed-avatar-${post.id}',
           animation: animation,
         ),
       ),
     );
   }
 
+  Future<void> _toggleLike() async {
+    if (_busy) return;
+    HapticFeedback.lightImpact();
+    final previous = post;
+    final wasLiked = previous.likedByMe;
+    widget.onChanged(
+      previous.copyWith(
+        reactionsCount: wasLiked
+            ? (previous.reactionsCount > 0 ? previous.reactionsCount - 1 : 0)
+            : previous.reactionsCount + 1,
+        currentUserReaction: wasLiked ? null : 'like',
+        clearReaction: wasLiked,
+      ),
+    );
+    setState(() => _busy = true);
+    try {
+      await _feedApi.react(postId: previous.id, type: 'like');
+    } on ApiException catch (e) {
+      widget.onChanged(previous);
+      _toast(e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    if (_busy || post.userId.isEmpty) return;
+    final me = AuthSession.instance.userId;
+    if (me != null && me == post.userId) return;
+    HapticFeedback.selectionClick();
+    final next = !post.isFollowed;
+    widget.onChanged(post.copyWith(isFollowed: next));
+    setState(() => _busy = true);
+    try {
+      final result = await _profileApi.toggleFollow(post.userId);
+      widget.onChanged(post.copyWith(isFollowed: result.isFollowing));
+    } on ApiException catch (e) {
+      widget.onChanged(post.copyWith(isFollowed: !next));
+      _toast(e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _openComments() async {
+    HapticFeedback.selectionClick();
+    final added = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CommentsSheet(postId: post.id),
+    );
+    if (added != null && added > 0) {
+      widget.onChanged(
+        post.copyWith(commentsCount: post.commentsCount + added),
+      );
+    }
+  }
+
+  Future<void> _deleteOwnPost() async {
+    final me = AuthSession.instance.userId;
+    if (me == null || me != post.userId) return;
+    try {
+      await _feedApi.deletePost(post.id);
+      widget.onDeleted(post.id);
+      _toast('Post deleted');
+    } on ApiException catch (e) {
+      _toast(e.message);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final post = widget.post;
+    final media = post.media.isNotEmpty ? post.media.first : null;
+    final isOwn = AuthSession.instance.userId == post.userId;
+    final profession = post.categories.isNotEmpty
+        ? post.categories.first.name
+        : (post.isReel ? 'Reel' : 'Innovator');
 
     return FastGlass(
       borderRadius: BorderRadius.circular(26),
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 8),
       child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ---- Header: avatar · name/profession · +Follow · dots ----
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  FastTap(
-                    onTap: _openAvatarFullscreen,
-                    borderRadius: BorderRadius.circular(999),
-                    child: Hero(
-                      tag: 'feed-avatar-${post.author}-${post.time}',
-                      child: _Avatar(letter: post.author[0]),
-                    ),
+              FastTap(
+                onTap: _openAvatarFullscreen,
+                borderRadius: BorderRadius.circular(999),
+                child: Hero(
+                  tag: 'feed-avatar-${post.id}',
+                  child: _Avatar(
+                    letter: post.displayAuthor.isEmpty
+                        ? '?'
+                        : post.displayAuthor[0],
+                    imageUrl: post.avatar,
                   ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: FastTap(
-                                onTap: _openAuthorProfile,
-                                borderRadius: BorderRadius.circular(6),
-                                child: Text(
-                                  post.author,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: _ink,
-                                    letterSpacing: -.2,
-                                  ),
-                                ),
+                        Flexible(
+                          child: FastTap(
+                            onTap: _openAuthorProfile,
+                            borderRadius: BorderRadius.circular(6),
+                            child: Text(
+                              post.displayAuthor,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: _ink,
+                                letterSpacing: -.2,
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            const _NameBadge(),
-                          ],
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          '${post.profession} · ${post.time}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: _ink.withValues(alpha: .45),
                           ),
                         ),
+                        const SizedBox(width: 4),
+                        const _NameBadge(),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  _FollowButton(
-                    following: _following,
-                    onTap: () => setState(() => _following = !_following),
-                  ),
-                  const SizedBox(width: 2),
-                  Builder(
-                    builder: (buttonContext) => FastTap(
-                      onTap: () => _openPostMenu(buttonContext),
-                      borderRadius: BorderRadius.circular(999),
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Icon(
-                          Icons.more_horiz_rounded,
-                          size: 20,
-                          color: _ink.withValues(alpha: .4),
-                        ),
+                    const SizedBox(height: 1),
+                    Text(
+                      '$profession · ${formatFeedTime(post.createdAt)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: _ink.withValues(alpha: .45),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // ---- Status ----
-              _ExpandableStatus(text: post.status),
-              if (post.mediaType != FeedMediaType.none) ...[
-                const SizedBox(height: 12),
-                _MediaSection(
-                  type: post.mediaType,
-                  label: post.mediaLabel,
-                  imageAsset: post.imageAsset,
-                  aspectRatio: post.aspectRatio,
+                  ],
                 ),
-              ],
-              const SizedBox(height: 4),
-              // ---- Actions: like · comment · repost · share ----
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _ActionButton(
-                    icon: _liked
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    label: '${post.likes + (_liked ? 1 : 0)}',
-                    active: _liked,
-                    activeColor: _likeRed,
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _liked = !_liked);
-                    },
+              ),
+              const SizedBox(width: 8),
+              if (!isOwn)
+                _FollowButton(
+                  following: post.isFollowed,
+                  onTap: _toggleFollow,
+                ),
+              const SizedBox(width: 2),
+              Builder(
+                builder: (buttonContext) => FastTap(
+                  onTap: () => _openPostMenu(buttonContext),
+                  borderRadius: BorderRadius.circular(999),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.more_horiz_rounded,
+                      size: 20,
+                      color: _ink.withValues(alpha: .4),
+                    ),
                   ),
-                  _ActionButton(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    label: '${post.comments}',
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                    },
-                  ),
-                  _ActionButton(
-                    icon: Icons.repeat_rounded,
-                    label: '${post.reposts + (_reposted ? 1 : 0)}',
-                    active: _reposted,
-                    activeColor: _repostGreen,
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _reposted = !_reposted);
-                    },
-                  ),
-                  _ActionButton(
-                    icon: Icons.ios_share_rounded,
-                    label: 'Share',
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      _toast('Share coming soon');
-                    },
-                  ),
-                ],
+                ),
               ),
             ],
           ),
+          if ((post.content ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ExpandableStatus(text: post.content!.trim()),
+          ],
+          if (post.sharedPost != null) ...[
+            const SizedBox(height: 10),
+            _SharedPostPreview(post: post.sharedPost!),
+          ],
+          if (media != null && media.file.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _MediaSection(
+              isVideo: media.isVideo,
+              label: media.isVideo ? 'Video' : 'Photo',
+              imageUrl: media.thumbnail?.isNotEmpty == true
+                  ? media.thumbnail!
+                  : media.file,
+            ),
+          ],
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _ActionButton(
+                icon: post.likedByMe
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                label: '${post.reactionsCount}',
+                active: post.likedByMe,
+                activeColor: _likeRed,
+                onTap: _toggleLike,
+              ),
+              _ActionButton(
+                icon: Icons.chat_bubble_outline_rounded,
+                label: '${post.commentsCount}',
+                onTap: _openComments,
+              ),
+              _ActionButton(
+                icon: Icons.repeat_rounded,
+                label: '${post.shareCount}',
+                activeColor: _repostGreen,
+                onTap: _repost,
+              ),
+              _ActionButton(
+                icon: Icons.ios_share_rounded,
+                label: 'Share',
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  Clipboard.setData(
+                    ClipboardData(text: post.content ?? post.id),
+                  );
+                  _toast('Link copied');
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SharedPostPreview extends StatelessWidget {
+  const _SharedPostPreview({required this.post});
+  final FeedPostDto post;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _ink.withValues(alpha: .1)),
+        color: Colors.white.withValues(alpha: .35),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '@${post.displayAuthor}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+              color: _ink,
+            ),
+          ),
+          if ((post.content ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              post.content!.trim(),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: _ink.withValues(alpha: .7),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.letter});
+  const _Avatar({required this.letter, this.imageUrl});
 
   final String letter;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
+    final url = imageUrl?.trim();
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: const BoxDecoration(
@@ -550,16 +660,32 @@ class _Avatar extends StatelessWidget {
           color: Colors.white.withValues(alpha: .95),
           border: Border.all(color: Colors.white, width: 1.5),
         ),
-        child: Center(
-          child: Text(
-            letter.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: _ink,
-            ),
-          ),
-        ),
+        clipBehavior: Clip.antiAlias,
+        child: url != null && url.isNotEmpty
+            ? Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Center(
+                  child: Text(
+                    letter.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                    ),
+                  ),
+                ),
+              )
+            : Center(
+                child: Text(
+                  letter.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -572,10 +698,12 @@ class _AvatarLightbox extends StatelessWidget {
     required this.name,
     required this.heroTag,
     required this.animation,
+    this.imageUrl,
   });
 
   final String letter;
   final String name;
+  final String? imageUrl;
   final String heroTag;
   final Animation<double> animation;
 
@@ -586,6 +714,7 @@ class _AvatarLightbox extends StatelessWidget {
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
+    final url = imageUrl?.trim();
 
     return Material(
       type: MaterialType.transparency,
@@ -622,25 +751,21 @@ class _AvatarLightbox extends StatelessWidget {
                                 color: Colors.white.withValues(alpha: .9),
                                 width: 3,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: .35),
-                                  blurRadius: 40,
-                                  offset: const Offset(0, 18),
-                                ),
-                              ],
                             ),
-                            child: Center(
-                              child: Text(
-                                letter,
-                                style: const TextStyle(
-                                  fontSize: 96,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  height: 1,
-                                ),
-                              ),
-                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: url != null && url.isNotEmpty
+                                ? Image.network(url, fit: BoxFit.cover)
+                                : Center(
+                                    child: Text(
+                                      letter,
+                                      style: const TextStyle(
+                                        fontSize: 96,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 22),
@@ -654,26 +779,243 @@ class _AvatarLightbox extends StatelessWidget {
                             letterSpacing: -.3,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Tap to close',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white.withValues(alpha: .55),
-                          ),
-                        ),
                       ],
                     ),
                   ),
                 ),
-                Positioned(
-                  top: 8,
-                  right: 16,
-                  child: IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: Colors.white.withValues(alpha: .9),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CommentsSheet extends StatefulWidget {
+  const _CommentsSheet({required this.postId});
+  final String postId;
+
+  @override
+  State<_CommentsSheet> createState() => _CommentsSheetState();
+}
+
+class _CommentsSheetState extends State<_CommentsSheet> {
+  final _api = FeedApi();
+  final _controller = TextEditingController();
+  final _comments = <FeedComment>[];
+  var _loading = true;
+  var _sending = false;
+  var _added = 0;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await _api.comments(postId: widget.postId);
+      if (!mounted) return;
+      setState(() {
+        _comments
+          ..clear()
+          ..addAll(list);
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.message;
+      });
+    }
+  }
+
+  Future<void> _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      final created = await _api.createComment(
+        postId: widget.postId,
+        content: text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments.insert(0, created);
+        _controller.clear();
+        _sending = false;
+        _added += 1;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: FractionallySizedBox(
+          heightFactor: .72,
+          child: Material(
+            color: BrandColors.canvas,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _ink.withValues(alpha: .2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Comments',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: _ink,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context, _added),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _loading
+                      ? const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        )
+                      : _error != null
+                          ? Center(child: Text(_error!))
+                          : _comments.isEmpty
+                              ? const Center(child: Text('No comments yet'))
+                              : ListView.separated(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    0,
+                                    16,
+                                    12,
+                                  ),
+                                  itemCount: _comments.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 10),
+                                  itemBuilder: (_, i) {
+                                    final c = _comments[i];
+                                    return Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _Avatar(
+                                          letter: (c.username ?? '?')[0],
+                                          imageUrl: c.avatar,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                c.username ?? 'User',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                c.content ?? '',
+                                                style: TextStyle(
+                                                  color: _ink.withValues(
+                                                    alpha: .78,
+                                                  ),
+                                                  height: 1.35,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            decoration: InputDecoration(
+                              hintText: 'Add a comment…',
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: .7),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                            ),
+                            onSubmitted: (_) => _send(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: _sending ? null : _send,
+                          style: IconButton.styleFrom(
+                            backgroundColor: BrandColors.secondarySurface,
+                          ),
+                          icon: _sending
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.send_rounded),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -854,29 +1196,22 @@ class _FollowButton extends StatelessWidget {
   }
 }
 
-/// Adaptive feed media — portrait, square, and landscape each get a natural
-/// frame (clamped like Instagram: 4:5 … 1.91:1) so every size fits cleanly.
+/// Adaptive feed media — network image/video thumb.
 class _MediaSection extends StatelessWidget {
   const _MediaSection({
-    required this.type,
+    required this.isVideo,
     required this.label,
-    required this.imageAsset,
-    this.aspectRatio,
+    required this.imageUrl,
   });
 
-  final FeedMediaType type;
+  final bool isVideo;
   final String label;
-  final String imageAsset;
-  final double? aspectRatio;
+  final String imageUrl;
 
-  double get _frameRatio {
-    final raw = aspectRatio ?? 4 / 5;
-    return raw.clamp(_mediaMinRatio, _mediaMaxRatio);
-  }
+  double get _frameRatio => (4 / 5).clamp(_mediaMinRatio, _mediaMaxRatio);
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = type == FeedMediaType.video;
     final ratio = _frameRatio;
     final screenCap = MediaQuery.sizeOf(context).height * .62;
 
@@ -900,12 +1235,15 @@ class _MediaSection extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    if (imageAsset.isNotEmpty)
-                      FastAssetImage(
-                        asset: imageAsset,
+                    if (imageUrl.isNotEmpty)
+                      Image.network(
+                        imageUrl,
                         fit: BoxFit.cover,
                         width: width,
                         height: height,
+                        errorBuilder: (_, __, ___) => const ColoredBox(
+                          color: Color(0xFF1B1E28),
+                        ),
                       )
                     else
                       const ColoredBox(color: Color(0xFF1B1E28)),
@@ -1059,7 +1397,7 @@ class _ActionButton extends StatelessWidget {
 
 // -------------------------------------------------------------- post menu
 
-enum _FeedMenuAction { repost, copy, block }
+enum _FeedMenuAction { repost, copy, block, delete }
 
 class _FeedMenuRoute extends PopupRoute<_FeedMenuAction> {
   _FeedMenuRoute({required this.anchorRect});
@@ -1179,6 +1517,18 @@ class _FeedMenuPopover extends StatelessWidget {
                               ).pop(_FeedMenuAction.copy),
                             ),
                             const SizedBox(height: 4),
+                            if (AuthSession.instance.userId != null) ...[
+                              // Delete shown for everyone; server enforces ownership.
+                              _FeedMenuTile(
+                                icon: Icons.delete_outline_rounded,
+                                label: 'Delete',
+                                destructive: true,
+                                onTap: () => Navigator.of(
+                                  context,
+                                ).pop(_FeedMenuAction.delete),
+                              ),
+                              const SizedBox(height: 4),
+                            ],
                             _FeedMenuTile(
                               icon: Icons.block_rounded,
                               label: 'Block',

@@ -5,7 +5,7 @@ import 'api_client.dart';
 
 /// Search service — http://36.253.137.34:8015/swagger
 class SearchApi {
-  SearchApi({ApiClient? client}) : _client = client ?? ApiClient();
+  SearchApi({ApiClient? client}) : _client = client ?? ApiClient.shared;
 
   final ApiClient _client;
 
@@ -63,7 +63,7 @@ class SearchApi {
     return envelope.data ?? const [];
   }
 
-  /// Same payload as [suggestedUsers] — both routes exist in swagger.
+  /// Suggested users — tries primary path, falls back once.
   Future<List<SearchUserHit>> suggestedUsers() async {
     try {
       return await _suggested('/api/suggested-users');
@@ -71,9 +71,6 @@ class SearchApi {
       return _suggested('/api/users/suggested');
     }
   }
-
-  Future<List<SearchUserHit>> usersSuggested() =>
-      _suggested('/api/users/suggested');
 
   Future<List<SearchUserHit>> _suggested(String path) async {
     final envelope = await _client.get<List<SearchUserHit>>(

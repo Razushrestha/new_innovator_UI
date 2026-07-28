@@ -53,6 +53,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   NavDock _dock = NavDock.bottom;
   int _selected = -1;
+  int _feedGeneration = 0;
   bool _showCart = false;
   bool _showProfile = false;
   bool _showNotifications = false;
@@ -298,7 +299,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   // Sections swap in place under the persistent nav bar,
                   // melting into each other like liquid.
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 450),
+                    duration: const Duration(milliseconds: 220),
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
                     transitionBuilder: (child, animation) => FadeTransition(
@@ -361,10 +362,13 @@ class _DashboardPageState extends State<DashboardPage> {
                             key: const ValueKey('post'),
                             authorName: _displayName,
                             contentPadding: _feedPadding,
-                            onPosted: () => setState(() => _selected = -1),
+                            onPosted: () => setState(() {
+                              _feedGeneration++;
+                              _selected = -1;
+                            }),
                           )
                         : NewsFeedSection(
-                            key: const ValueKey('feed'),
+                            key: ValueKey('feed-$_feedGeneration'),
                             controller: _scroll,
                             padding: _feedPadding,
                           ),

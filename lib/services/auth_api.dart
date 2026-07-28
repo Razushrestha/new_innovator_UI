@@ -3,6 +3,7 @@ import '../models/api_response.dart';
 import 'api_client.dart';
 import 'auth_session.dart';
 import 'google_auth_service.dart';
+import 'memory_cache.dart';
 import 'profile_api.dart';
 
 class AuthUser {
@@ -58,7 +59,7 @@ class AuthResult {
 
 /// Auth service — http://36.253.137.34:8010/swagger
 class AuthApi {
-  AuthApi({ApiClient? client}) : _client = client ?? ApiClient();
+  AuthApi({ApiClient? client}) : _client = client ?? ApiClient.shared;
 
   final ApiClient _client;
 
@@ -188,6 +189,7 @@ class AuthApi {
   }
 
   Future<void> _ensureProfile(AuthUser user) async {
+    if (AuthSession.instance.profileEnsured) return;
     try {
       await ProfileApi().ensureProfile(
         authUserId: user.id,
@@ -214,5 +216,6 @@ class AuthApi {
     }
     await GoogleAuthService.instance.signOut();
     await AuthSession.instance.clear();
+    MemoryCache.clear();
   }
 }

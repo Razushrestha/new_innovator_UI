@@ -4,6 +4,7 @@
 /// Auth Swagger: http://36.253.137.34:8010/swagger/index.html
 /// Profile Swagger: http://36.253.137.34:8011/swagger/index.html
 /// Search Swagger: http://36.253.137.34:8015/swagger/index.html
+/// Feed Swagger: http://36.253.137.34:8012/swagger/index.html
 class ApiConfig {
   ApiConfig._();
 
@@ -11,8 +12,16 @@ class ApiConfig {
   static const chatBaseUrl = 'http://36.253.137.34:8014';
   static const profileBaseUrl = 'http://36.253.137.34:8011';
   static const searchBaseUrl = 'http://36.253.137.34:8015';
+  static const feedBaseUrl = 'http://36.253.137.34:8012';
 
-  static const connectTimeout = Duration(seconds: 20);
+  /// Fail fast on hung sockets so the UI can retry.
+  static const connectTimeout = Duration(seconds: 10);
+
+  /// Default feed page size — fewer round trips without oversized payloads.
+  static const feedPageSize = 15;
+
+  /// How long in-memory caches stay valid (categories, profile, etc.).
+  static const cacheTtl = Duration(minutes: 8);
 
   /// Google Cloud **Web** OAuth client ID (used as `serverClientId`).
   /// From Firebase project `innovator-250f8` (`client_type: 3`).

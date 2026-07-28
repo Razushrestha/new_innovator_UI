@@ -81,12 +81,14 @@ class _SearchSectionState extends State<SearchSection>
       _error = null;
     });
     try {
-      final suggested = await _searchApi.suggestedUsers();
-      final history = await _searchApi.history();
+      final results = await Future.wait([
+        _searchApi.suggestedUsers(),
+        _searchApi.history(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _suggested = suggested;
-        _history = history;
+        _suggested = results[0] as List<SearchUserHit>;
+        _history = results[1] as List<SearchHistoryItem>;
         _bootLoading = false;
       });
     } on ApiException catch (e) {
@@ -116,7 +118,7 @@ class _SearchSectionState extends State<SearchSection>
       });
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 320), () {
+    _debounce = Timer(const Duration(milliseconds: 220), () {
       _runSearch(trimmed);
     });
   }
@@ -128,25 +130,33 @@ class _SearchSectionState extends State<SearchSection>
     });
     try {
       final combined = await _searchApi.search(q: q, type: 'all');
-      // Merge dedicated endpoints when combined sections are empty.
+      // Fill empty sections in parallel instead of chaining round trips.
       var users = combined.users;
       var posts = combined.posts;
       var hashtags = combined.hashtags;
+      final fill = <Future<void>>[];
       if (users.isEmpty) {
-        try {
-          users = await _searchApi.searchUsers(q);
-        } catch (_) {}
+        fill.add(() async {
+          try {
+            users = await _searchApi.searchUsers(q);
+          } catch (_) {}
+        }());
       }
       if (posts.isEmpty) {
-        try {
-          posts = await _searchApi.searchPosts(q);
-        } catch (_) {}
+        fill.add(() async {
+          try {
+            posts = await _searchApi.searchPosts(q);
+          } catch (_) {}
+        }());
       }
       if (hashtags.isEmpty) {
-        try {
-          hashtags = await _searchApi.searchHashtags(q);
-        } catch (_) {}
+        fill.add(() async {
+          try {
+            hashtags = await _searchApi.searchHashtags(q);
+          } catch (_) {}
+        }());
       }
+      if (fill.isNotEmpty) await Future.wait(fill);
       if (!mounted || _query != q) return;
       setState(() {
         _results = CombinedSearchResult(

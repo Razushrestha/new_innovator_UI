@@ -8,6 +8,10 @@ import 'package:flutter/material.dart';
 import 'theme/brand_colors.dart';
 import 'package:flutter/services.dart';
 
+import 'models/api_response.dart';
+import 'models/feed_models.dart';
+import 'services/auth_session.dart';
+import 'services/feed_api.dart';
 import 'widgets/liquid_button.dart';
 import 'widgets/liquid_pressable.dart';
 import 'widgets/wave_fill_painter.dart';
@@ -24,12 +28,14 @@ class PostAttachment {
     required this.name,
     required this.size,
     this.path,
+    this.bytes,
   });
 
   final AttachmentKind kind;
   final String name;
   final int size;
   final String? path;
+  final Uint8List? bytes;
 }
 
 /// Compose section rendered inside the dashboard shell, so the dockable
@@ -64,8 +70,11 @@ class _PostSectionState extends State<PostSection>
   final _text = TextEditingController();
   final _focus = FocusNode();
   final _attachments = <PostAttachment>[];
+  final _feedApi = FeedApi();
   bool _picking = false;
   bool _posting = false;
+  List<FeedCategory> _categories = const [];
+  final Set<String> _selectedCategoryIds = {};
 
   static const _hints = [
     'Share something inspiring…',
@@ -75,13 +84,6 @@ class _PostSectionState extends State<PostSection>
   ];
   int _hintIndex = 0;
   Timer? _hintTimer;
-
-  static const _audiences = [
-    (Icons.public_rounded, 'Public'),
-    (Icons.group_rounded, 'Followers'),
-    (Icons.lock_rounded, 'Only me'),
-  ];
-  int _audience = 0;
 
   late final AnimationController _entrance = AnimationController(
     vsync: this,
@@ -119,6 +121,17 @@ class _PostSectionState extends State<PostSection>
         setState(() => _hintIndex = (_hintIndex + 1) % _hints.length);
       }
     });
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final list = await _feedApi.categories();
+      if (!mounted) return;
+      setState(() => _categories = list);
+    } catch (_) {
+      // Composer still works without categories.
+    }
   }
 
   @override
@@ -182,6 +195,7 @@ class _PostSectionState extends State<PostSection>
     try {
       final result = await FilePicker.pickFiles(
         allowMultiple: true,
+        withData: true,
         type: switch (kind) {
           AttachmentKind.image => FileType.image,
           AttachmentKind.video => FileType.video,
@@ -199,6 +213,7 @@ class _PostSectionState extends State<PostSection>
               name: file.name,
               size: file.size,
               path: file.path,
+              bytes: file.bytes,
             ),
           );
         }
@@ -241,18 +256,64 @@ class _PostSectionState extends State<PostSection>
 
   // ----------------------------------------------------------------- post
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_canPost || _posting) return;
+    if (!AuthSession.instance.isSignedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Sign in to publish a post'),
+        ),
+      );
+      return;
+    }
     HapticFeedback.mediumImpact();
     _focus.unfocus();
     setState(() => _posting = true);
-    // Let the liquid wave swallow the screen, then melt back to the feed.
-    Future.delayed(const Duration(milliseconds: 950), () {
+    try {
+      final media = <({Uint8List bytes, String filename})>[];
+      for (final a in _attachments) {
+        if (a.kind != AttachmentKind.image && a.kind != AttachmentKind.video) {
+          continue;
+        }
+        Uint8List? bytes = a.bytes;
+        if (bytes == null && a.path != null) {
+          bytes = await File(a.path!).readAsBytes();
+        }
+        if (bytes == null) continue;
+        media.add((bytes: bytes, filename: a.name));
+      }
+      final content = _text.text.trim();
+      if (content.isEmpty && media.isEmpty) {
+        throw ApiException(
+          'Add text or a photo/video. PDF and other files are not uploaded yet.',
+        );
+      }
+      await _feedApi.createPost(
+        content: content,
+        categoryIds: _selectedCategoryIds.toList(),
+        media: media,
+      );
       if (!mounted) return;
       HapticFeedback.lightImpact();
       ScaffoldMessenger.of(context).showSnackBar(_liveSnackBar());
       widget.onPosted();
-    });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _posting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _posting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Could not publish post'),
+        ),
+      );
+    }
   }
 
   SnackBar _liveSnackBar() {
@@ -399,14 +460,9 @@ class _PostSectionState extends State<PostSection>
                   children: [
                     _AuthorRow(
                       name: widget.authorName,
-                      audienceIcon: _audiences[_audience].$1,
-                      audienceLabel: _audiences[_audience].$2,
-                      onAudienceTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(
-                          () => _audience = (_audience + 1) % _audiences.length,
-                        );
-                      },
+                      audienceIcon: Icons.public_rounded,
+                      audienceLabel: 'Public',
+                      onAudienceTap: null,
                     ),
                     const SizedBox(height: 16),
                     _buildTextArea(),
@@ -416,6 +472,10 @@ class _PostSectionState extends State<PostSection>
                         attachments: _attachments,
                         onRemove: _removeAttachment,
                       ),
+                    ],
+                    if (_categories.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _buildCategoryChips(),
                     ],
                     const SizedBox(height: 12),
                     Container(height: 1, color: _ink.withValues(alpha: .07)),
@@ -428,6 +488,42 @@ class _PostSectionState extends State<PostSection>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCategoryChips() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final c in _categories)
+          FilterChip(
+            label: Text(c.name),
+            selected: _selectedCategoryIds.contains(c.id),
+            onSelected: (selected) {
+              HapticFeedback.selectionClick();
+              setState(() {
+                if (selected) {
+                  _selectedCategoryIds.add(c.id);
+                } else {
+                  _selectedCategoryIds.remove(c.id);
+                }
+              });
+            },
+            selectedColor: BrandColors.accent.withValues(alpha: .35),
+            checkmarkColor: _ink,
+            labelStyle: TextStyle(
+              color: _ink.withValues(alpha: .85),
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+            ),
+            side: BorderSide(color: _ink.withValues(alpha: .12)),
+            backgroundColor: Colors.white.withValues(alpha: .45),
+            showCheckmark: true,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+      ],
     );
   }
 
@@ -845,13 +941,13 @@ class _AuthorRow extends StatelessWidget {
     required this.name,
     required this.audienceIcon,
     required this.audienceLabel,
-    required this.onAudienceTap,
+    this.onAudienceTap,
   });
 
   final String name;
   final IconData audienceIcon;
   final String audienceLabel;
-  final VoidCallback onAudienceTap;
+  final VoidCallback? onAudienceTap;
 
   @override
   Widget build(BuildContext context) {
@@ -902,12 +998,11 @@ class _AuthorRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 5),
-              // Tap to cycle who can see the post.
               LiquidPressable(
-                onTap: onAudienceTap,
+                onTap: onAudienceTap ?? () {},
                 borderRadius: BorderRadius.circular(20),
                 rippleColor: _ink,
-                intensity: .5,
+                intensity: onAudienceTap == null ? 0 : .5,
                 child: AnimatedSize(
                   duration: const Duration(milliseconds: 280),
                   curve: Curves.easeOutCubic,
@@ -952,12 +1047,14 @@ class _AuthorRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 3),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 13,
-                          color: _muted.withValues(alpha: .8),
-                        ),
+                        if (onAudienceTap != null) ...[
+                          const SizedBox(width: 3),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 13,
+                            color: _muted.withValues(alpha: .8),
+                          ),
+                        ],
                       ],
                     ),
                   ),

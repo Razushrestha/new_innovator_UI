@@ -1,0 +1,19 @@
+{
+  "summary": "About 90 concurrent authenticated users stayed healthy (fail 1.2%, p95 74ms). Comfortable target: ~70 concurrent active users. Scheduled peak was 150 VUs — auth signup capped successful sessions at 90.",
+  "peak_vus": 150,
+  "authed_sessions": 90,
+  "comfortable_concurrent_users": 70,
+  "http_reqs": 28760,
+  "fail_rate": 0.011787204450625869,
+  "p95_ms": 74.0982,
+  "p99_ms": 0,
+  "feed_p95_ms": 91.10773999999999,
+  "error_rate": 0.008036275478135943,
+  "healthy": true,
+  "notes": [
+    "Mix: feed + profile + chat + search + ~20% post create, with 1–3s think time",
+    "Auth /register is the first bottleneck under burst signup",
+    "Once logged in, API p95 stayed under ~100ms through the ramp",
+    "Concurrent active users ≠ total registered users; DAU can be much higher"
+  ]
+}

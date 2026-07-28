@@ -5,7 +5,7 @@ import 'api_client.dart';
 
 /// Chat service — http://36.253.137.34:8014/swagger
 class ChatApi {
-  ChatApi({ApiClient? client}) : _client = client ?? ApiClient();
+  ChatApi({ApiClient? client}) : _client = client ?? ApiClient.shared;
 
   final ApiClient _client;
 

@@ -382,10 +382,11 @@ class _ChatSectionState extends State<ChatSection>
 
   Future<void> _openConversation(_Conversation conversation) async {
     HapticFeedback.selectionClick();
+    final cached = _messages[conversation.id];
     setState(() {
       _open = conversation;
       conversation.unread = 0;
-      _loadingThread = true;
+      _loadingThread = cached == null;
     });
     try {
       final remote = await _chatApi.listMessages(conversation.id);
@@ -406,11 +407,11 @@ class _ChatSectionState extends State<ChatSection>
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _loadingThread = false);
-      _liquidToast(e.message);
+      if (cached == null) _liquidToast(e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingThread = false);
-      _liquidToast('Could not load messages');
+      if (cached == null) _liquidToast('Could not load messages');
     }
   }
 
@@ -421,7 +422,7 @@ class _ChatSectionState extends State<ChatSection>
       _open = null;
       _loadingThread = false;
     });
-    unawaited(_loadConversations());
+    // List already reflects local unread=0; skip full refetch on every back.
   }
 
   Future<void> _deliverMessage(_Conversation open, String text) async {

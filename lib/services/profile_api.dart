@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import '../config/api_config.dart';
@@ -6,13 +7,16 @@ import '../models/profile_models.dart';
 import '../models/search_models.dart';
 import 'api_client.dart';
 import 'auth_session.dart';
+import 'memory_cache.dart';
 import 'search_api.dart';
 
 /// Profile service — http://36.253.137.34:8011/swagger
 class ProfileApi {
-  ProfileApi({ApiClient? client}) : _client = client ?? ApiClient();
+  ProfileApi({ApiClient? client}) : _client = client ?? ApiClient.shared;
 
   final ApiClient _client;
+
+  static const _meKey = 'profile.me';
 
   /// Creates the profile row if missing (InternalProfile).
   Future<void> ensureProfile({
@@ -21,6 +25,7 @@ class ProfileApi {
     String? email,
     String? role,
   }) async {
+    if (AuthSession.instance.profileEnsured) return;
     await _client.post<Object?>(
       ApiConfig.profileBaseUrl,
       '/api/internal/profiles/ensure',
@@ -32,24 +37,31 @@ class ProfileApi {
       },
       parse: (_) => null,
     );
-    try {
-      await SearchApi().upsertUser(
-        UpsertUserIndexRequest(
-          authUserId: authUserId,
-          username: username,
-          fullName: username,
-          role: role,
-        ),
-      );
-    } catch (_) {
-      // Search index sync is best-effort.
-    }
+    AuthSession.instance.profileEnsured = true;
+    // Search index sync must not block login / profile open.
+    unawaited(() async {
+      try {
+        await SearchApi().upsertUser(
+          UpsertUserIndexRequest(
+            authUserId: authUserId,
+            username: username,
+            fullName: username,
+            role: role,
+          ),
+        );
+      } catch (_) {}
+    }());
   }
 
   /// Ensures then returns the signed-in user's profile.
   Future<UserProfile> getMe({bool ensureIfMissing = true}) async {
+    final cached = MemoryCache.get<UserProfile>(_meKey);
+    if (cached != null) return cached;
     try {
-      return await _getMeOnce();
+      final me = await _getMeOnce();
+      MemoryCache.set(_meKey, me, ttl: const Duration(minutes: 2));
+      AuthSession.instance.profileEnsured = true;
+      return me;
     } on ApiException catch (e) {
       if (!ensureIfMissing || e.statusCode != 404) rethrow;
       final session = AuthSession.instance;
@@ -61,7 +73,9 @@ class ProfileApi {
         email: session.email,
         role: 'user',
       );
-      return _getMeOnce();
+      final me = await _getMeOnce();
+      MemoryCache.set(_meKey, me, ttl: const Duration(minutes: 2));
+      return me;
     }
   }
 
@@ -123,21 +137,8 @@ class ProfileApi {
     if (data == null) {
       throw ApiException(envelope.message ?? 'Could not update profile');
     }
-    try {
-      await SearchApi().upsertUser(
-        UpsertUserIndexRequest(
-          authUserId: data.authUserId,
-          username: data.username,
-          fullName: data.fullName,
-          avatar: data.avatar,
-          bio: data.bio,
-          role: data.role,
-          interests: data.interests,
-          followersCount: data.followersCount,
-          followingCount: data.followingCount,
-        ),
-      );
-    } catch (_) {}
+    MemoryCache.set(_meKey, data, ttl: const Duration(minutes: 2));
+    unawaited(_syncUserIndex(data));
     return data;
   }
 
@@ -154,6 +155,12 @@ class ProfileApi {
     if (data == null) {
       throw ApiException(envelope.message ?? 'Could not update profile');
     }
+    MemoryCache.set(_meKey, data, ttl: const Duration(minutes: 2));
+    unawaited(_syncUserIndex(data));
+    return data;
+  }
+
+  Future<void> _syncUserIndex(UserProfile data) async {
     try {
       await SearchApi().upsertUser(
         UpsertUserIndexRequest(
@@ -169,7 +176,6 @@ class ProfileApi {
         ),
       );
     } catch (_) {}
-    return data;
   }
 
   Future<String> uploadAvatar(
@@ -221,17 +227,20 @@ class ProfileApi {
     if (data == null) {
       throw ApiException(envelope.message ?? 'Follow failed');
     }
+    MemoryCache.invalidate(_meKey);
     final me = AuthSession.instance.userId;
     if (me != null && me.isNotEmpty) {
-      try {
-        await SearchApi().syncFollow(
-          SyncFollowRequest(
-            followerId: me,
-            followingId: targetAuthUserId,
-            isFollowing: data.isFollowing,
-          ),
-        );
-      } catch (_) {}
+      unawaited(() async {
+        try {
+          await SearchApi().syncFollow(
+            SyncFollowRequest(
+              followerId: me,
+              followingId: targetAuthUserId,
+              isFollowing: data.isFollowing,
+            ),
+          );
+        } catch (_) {}
+      }());
     }
     return data;
   }

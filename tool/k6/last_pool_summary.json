@@ -1,0 +1,25 @@
+{
+  "mode": "pre_login_pool",
+  "summary": "With a pre-login pool (no mass signup), feed/API stayed fast but connection failures rose above ~100 concurrent VUs. Comfortable pure-API target ~80–100 concurrent sessions; 200 VUs hit 13% failures.",
+  "peak_vus": 200,
+  "comfortable_concurrent_users": 90,
+  "breaking_point_approx": 100,
+  "http_reqs": 15409,
+  "iterations": 2929,
+  "fail_rate": 0.1334722312650563,
+  "p95_ms": 35.37,
+  "feed_p95_ms": 43.19,
+  "error_rate": 0.1353419801820672,
+  "healthy": false,
+  "notes": [
+    "25 pre-authenticated tokens reused across up to 200 VUs",
+    "Successful requests stayed very fast (overall p95 ~35ms, feed p95 ~43ms)",
+    "Failures were mostly dial/connect timeouts as VUs climbed past ~100",
+    "Compared to signup-ramp test (~70 comfortable): auth signup is tighter; logged-in API ceiling is higher"
+  ],
+  "combined_guidance": {
+    "with_signup_bursts": 70,
+    "logged_in_api_mix": 90,
+    "not_sustainable": 200
+  }
+}

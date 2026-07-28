@@ -8,8 +8,13 @@ import '../models/api_response.dart';
 import 'auth_session.dart';
 
 /// Shared HTTP helper with Bearer auth + ApiEnvelope parsing.
+///
+/// Use [ApiClient.shared] everywhere so keep-alive sockets are reused.
 class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
+
+  /// Process-wide client — one connection pool for all services.
+  static final ApiClient shared = ApiClient();
 
   final http.Client _client;
 
@@ -104,6 +109,30 @@ class ApiClient {
     required Uint8List bytes,
     required String filename,
     String method = 'POST',
+    Map<String, String>? fields,
+    T Function(Object? raw)? parse,
+    bool auth = true,
+  }) {
+    return multipartForm(
+      baseUrl,
+      path,
+      method: method,
+      fields: fields,
+      files: [
+        http.MultipartFile.fromBytes(fileField, bytes, filename: filename),
+      ],
+      parse: parse,
+      auth: auth,
+    );
+  }
+
+  /// Multipart with arbitrary fields + files (create post / reel).
+  Future<ApiEnvelope<T>> multipartForm<T>(
+    String baseUrl,
+    String path, {
+    String method = 'POST',
+    Map<String, String>? fields,
+    List<http.MultipartFile>? files,
     T Function(Object? raw)? parse,
     bool auth = true,
   }) async {
@@ -114,19 +143,15 @@ class ApiClient {
           AuthSession.instance.authorizationHeader;
     }
     request.headers['Accept'] = 'application/json';
-    request.files.add(
-      http.MultipartFile.fromBytes(
-        fileField,
-        bytes,
-        filename: filename,
-      ),
-    );
+    if (fields != null) request.fields.addAll(fields);
+    if (files != null) request.files.addAll(files);
 
     late http.Response response;
     try {
       final streamed =
-          await request.send().timeout(ApiConfig.connectTimeout);
-      response = await http.Response.fromStream(streamed);
+          await _client.send(request).timeout(ApiConfig.connectTimeout);
+      response = await http.Response.fromStream(streamed)
+          .timeout(ApiConfig.connectTimeout);
     } catch (e) {
       throw ApiException('Network error: $e');
     }
@@ -145,6 +170,7 @@ class ApiClient {
     final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
     final headers = <String, String>{
       'Accept': 'application/json',
+      'Connection': 'keep-alive',
       if (body != null) 'Content-Type': 'application/json',
       if (auth && AuthSession.instance.isSignedIn)
         'Authorization': AuthSession.instance.authorizationHeader,
