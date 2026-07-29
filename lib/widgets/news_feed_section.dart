@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -10,11 +11,14 @@ import '../profile_page.dart';
 import '../config/api_config.dart';
 import '../services/auth_session.dart';
 import '../services/feed_api.dart';
-import '../services/memory_cache.dart';
+import '../services/feed_cache.dart';
+import '../services/media_cache.dart';
 import '../services/post_view_recorder.dart';
 import '../services/profile_api.dart';
 import '../theme/brand_colors.dart';
+import 'cached_feed_image.dart';
 import 'fast_glass.dart';
+import 'feed_video_player.dart';
 import 'liquid_pressable.dart';
 
 const _ink = BrandColors.ink;
@@ -48,6 +52,7 @@ class _NewsFeedSectionState extends State<NewsFeedSection> {
   var _loading = true;
   var _loadingMore = false;
   var _hasMore = true;
+  var _refreshing = false;
   String? _error;
   ScrollController? _ownedController;
 
@@ -58,6 +63,7 @@ class _NewsFeedSectionState extends State<NewsFeedSection> {
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    _hydrateFromCache();
     _load(reset: true);
   }
 
@@ -66,6 +72,18 @@ class _NewsFeedSectionState extends State<NewsFeedSection> {
     _scroll.removeListener(_onScroll);
     _ownedController?.dispose();
     super.dispose();
+  }
+
+  void _hydrateFromCache() {
+    final snap = FeedCache.snapshot();
+    if (snap == null || snap.posts.isEmpty) return;
+    _posts
+      ..clear()
+      ..addAll(snap.posts);
+    _page = snap.highestPage;
+    _hasMore = snap.hasMore;
+    _loading = false;
+    InnovatorMediaCache.prefetchPosts(snap.posts.take(12));
   }
 
   void _onScroll() {
@@ -78,47 +96,76 @@ class _NewsFeedSectionState extends State<NewsFeedSection> {
 
   Future<void> _load({required bool reset}) async {
     if (reset) {
-      final cached = MemoryCache.get<List<FeedPostDto>>('feed.page1');
       setState(() {
         _error = null;
+        _refreshing = _posts.isNotEmpty;
+        _loading = _posts.isEmpty;
+        // Network refresh always starts at page 1; keep painted posts.
         _page = 1;
         _hasMore = true;
-        if (cached != null && cached.isNotEmpty && _posts.isEmpty) {
-          _posts.addAll(cached);
-          _loading = false;
-        } else {
-          _loading = _posts.isEmpty;
-        }
       });
     }
+
+    final requestPage = reset ? 1 : _page;
+
+    // Instant paint from dynamic page cache when loading more.
+    if (!reset) {
+      final cached = FeedCache.getPage(requestPage);
+      if (cached != null) {
+        if (!mounted) return;
+        setState(() {
+          _appendUnique(cached.posts);
+          _hasMore = cached.hasMore;
+          _loading = false;
+          if (cached.isFresh) _loadingMore = false;
+        });
+        InnovatorMediaCache.prefetchPosts(cached.posts);
+        if (cached.isFresh) return;
+        // Stale — fall through and revalidate in background.
+      }
+    }
+
     try {
       final page = await _feedApi.getFeed(
-        page: _page,
+        page: requestPage,
         pageSize: ApiConfig.feedPageSize,
       );
       if (!mounted) return;
+
+      FeedCache.putPage(
+        requestPage,
+        page.results,
+        hasMore: page.hasMore,
+      );
+      InnovatorMediaCache.prefetchPosts(page.results);
+
       setState(() {
         if (reset) {
+          final snap = FeedCache.snapshot();
           _posts
             ..clear()
-            ..addAll(page.results);
-          MemoryCache.set(
-            'feed.page1',
-            List<FeedPostDto>.from(page.results),
-            ttl: const Duration(minutes: 2),
-          );
+            ..addAll(snap?.posts ?? page.results);
+          _page = snap?.highestPage ?? 1;
+          _hasMore = snap?.hasMore ?? page.hasMore;
         } else {
-          _posts.addAll(page.results);
+          _appendUnique(page.results);
+          _hasMore = page.hasMore;
         }
-        _hasMore = page.hasMore;
         _loading = false;
         _loadingMore = false;
+        _refreshing = false;
       });
+
+      // Warm next page JSON + media while user reads.
+      if (page.hasMore) {
+        unawaited(_prefetchPage(requestPage + 1));
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
         _loadingMore = false;
+        _refreshing = false;
         if (_posts.isEmpty) _error = e.message;
       });
     } catch (_) {
@@ -126,9 +173,35 @@ class _NewsFeedSectionState extends State<NewsFeedSection> {
       setState(() {
         _loading = false;
         _loadingMore = false;
+        _refreshing = false;
         if (_posts.isEmpty) _error = 'Could not load feed';
       });
     }
+  }
+
+  void _appendUnique(List<FeedPostDto> incoming) {
+    final seen = _posts.map((p) => p.id).toSet();
+    for (final p in incoming) {
+      if (seen.add(p.id)) _posts.add(p);
+    }
+  }
+
+  Future<void> _prefetchPage(int page) async {
+    if (FeedCache.isFresh(page)) {
+      final cached = FeedCache.getPage(page);
+      if (cached != null) {
+        InnovatorMediaCache.prefetchPosts(cached.posts);
+      }
+      return;
+    }
+    try {
+      final data = await _feedApi.getFeed(
+        page: page,
+        pageSize: ApiConfig.feedPageSize,
+      );
+      FeedCache.putPage(page, data.results, hasMore: data.hasMore);
+      InnovatorMediaCache.prefetchPosts(data.results);
+    } catch (_) {}
   }
 
   Future<void> _loadMore() async {
@@ -173,52 +246,69 @@ class _NewsFeedSectionState extends State<NewsFeedSection> {
       );
     }
 
-    final cacheExtent = MediaQuery.sizeOf(context).height * 1.5;
+    final cacheExtent = MediaQuery.sizeOf(context).height * 1.75;
     final itemCount = _posts.length + (_loadingMore ? 1 : 0);
 
     return RefreshIndicator(
       onRefresh: () => _load(reset: true),
-      child: ListView.builder(
-        controller: _scroll,
-        padding: widget.padding,
-        itemCount: itemCount == 0 ? 1 : itemCount,
-        cacheExtent: cacheExtent,
-        physics: const ClampingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
-        addAutomaticKeepAlives: false,
-        addRepaintBoundaries: true,
-        addSemanticIndexes: false,
-        itemBuilder: (context, index) {
-          if (_posts.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.only(top: 48),
-              child: Center(child: Text('No posts yet — be the first.')),
-            );
-          }
-          if (index >= _posts.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 18),
+      child: Stack(
+        children: [
+          ListView.builder(
+            controller: _scroll,
+            padding: widget.padding,
+            itemCount: itemCount == 0 ? 1 : itemCount,
+            cacheExtent: cacheExtent,
+            physics: const ClampingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: true,
+            addSemanticIndexes: false,
+            itemBuilder: (context, index) {
+              if (_posts.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 48),
+                  child: Center(child: Text('No posts yet — be the first.')),
+                );
+              }
+              if (index >= _posts.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 18),
+                  child: Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    ),
+                  ),
+                );
+              }
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index == _posts.length - 1 && !_loadingMore ? 0 : 12,
+                ),
+                child: _FeedCard(
+                  post: _posts[index],
+                  onChanged: _replacePost,
+                  onDeleted: _removePost,
+                ),
+              );
+            },
+          ),
+          if (_refreshing)
+            const Positioned(
+              top: 8,
+              left: 0,
+              right: 0,
               child: Center(
                 child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-            );
-          }
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: index == _posts.length - 1 && !_loadingMore ? 0 : 12,
             ),
-            child: _FeedCard(
-              post: _posts[index],
-              onChanged: _replacePost,
-              onDeleted: _removePost,
-            ),
-          );
-        },
+        ],
       ),
     );
   }
@@ -437,7 +527,6 @@ class _FeedCardState extends State<_FeedCard> {
 
   @override
   Widget build(BuildContext context) {
-    final media = post.media.isNotEmpty ? post.media.first : null;
     final isOwn = AuthSession.instance.userId == post.userId;
     final profession = post.categories.isNotEmpty
         ? post.categories.first.name
@@ -537,15 +626,9 @@ class _FeedCardState extends State<_FeedCard> {
             const SizedBox(height: 10),
             _SharedPostPreview(post: post.sharedPost!),
           ],
-          if (media != null && media.file.isNotEmpty) ...[
+          if (post.media.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _MediaSection(
-              isVideo: media.isVideo,
-              label: media.isVideo ? 'Video' : 'Photo',
-              imageUrl: media.thumbnail?.isNotEmpty == true
-                  ? media.thumbnail!
-                  : media.file,
-            ),
+            _MediaCollage(items: post.media),
           ],
           const SizedBox(height: 4),
           Row(
@@ -662,10 +745,15 @@ class _Avatar extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: url != null && url.isNotEmpty
-            ? Image.network(
-                url,
+            ? CachedFeedImage(
+                url: url,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Center(
+                width: 42,
+                height: 42,
+                memCacheWidth: 96,
+                memCacheHeight: 96,
+                fadeDuration: const Duration(milliseconds: 120),
+                errorWidget: Center(
                   child: Text(
                     letter.toUpperCase(),
                     style: const TextStyle(
@@ -754,7 +842,11 @@ class _AvatarLightbox extends StatelessWidget {
                             ),
                             clipBehavior: Clip.antiAlias,
                             child: url != null && url.isNotEmpty
-                                ? Image.network(url, fit: BoxFit.cover)
+                                ? CachedFeedImage(
+                                    url: url,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: 720,
+                                  )
                                 : Center(
                                     child: Text(
                                       letter,
@@ -786,6 +878,186 @@ class _AvatarLightbox extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fullscreen feed media gallery — swipe between images, pinch to zoom, tap close.
+class _FeedMediaLightbox extends StatefulWidget {
+  const _FeedMediaLightbox({
+    required this.items,
+    required this.initialIndex,
+    required this.animation,
+  });
+
+  final List<FeedMediaItem> items;
+  final int initialIndex;
+  final Animation<double> animation;
+
+  @override
+  State<_FeedMediaLightbox> createState() => _FeedMediaLightboxState();
+}
+
+class _FeedMediaLightboxState extends State<_FeedMediaLightbox> {
+  late final PageController _page =
+      PageController(initialPage: widget.initialIndex);
+  late int _index = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _page.dispose();
+    super.dispose();
+  }
+
+  void _close() => Navigator.of(context).maybePop();
+
+  @override
+  Widget build(BuildContext context) {
+    final curved = CurvedAnimation(
+      parent: widget.animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    final total = widget.items.length;
+
+    return Material(
+      type: MaterialType.transparency,
+      child: FadeTransition(
+        opacity: curved,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Dim backdrop — tap empty area to dismiss.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _close,
+              child: const ColoredBox(color: Colors.transparent),
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: _close,
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (total > 1)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              color: Colors.white.withValues(alpha: .12),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: .2),
+                              ),
+                            ),
+                            child: Text(
+                              '${_index + 1} / $total',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        const Spacer(),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _page,
+                      itemCount: total,
+                      onPageChanged: (i) => setState(() => _index = i),
+                      itemBuilder: (context, i) {
+                        final item = widget.items[i];
+                        if (item.isVideo) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: FeedVideoPlayer(
+                              url: item.file,
+                              posterUrl: item.thumbnail,
+                              fit: BoxFit.contain,
+                              autoplay: i == _index,
+                              muted: false,
+                              looping: true,
+                              showControls: true,
+                              requireVisible: false,
+                            ),
+                          );
+                        }
+                        final url = _MediaCollage.displayUrl(item);
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Center(
+                            child: InteractiveViewer(
+                              minScale: 1,
+                              maxScale: 4,
+                              child: url.isEmpty
+                                  ? const Icon(
+                                      Icons.broken_image_outlined,
+                                      color: Colors.white38,
+                                      size: 64,
+                                    )
+                                  : CachedFeedImage(
+                                      url: url,
+                                      fit: BoxFit.contain,
+                                      memCacheWidth: 1080,
+                                      fadeDuration: Duration.zero,
+                                      errorWidget: const Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.white38,
+                                        size: 64,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  if (total > 1)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(total.clamp(0, 12), (i) {
+                          final active = i == _index;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            width: active ? 16 : 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              color: Colors.white.withValues(
+                                alpha: active ? .95 : .35,
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    )
+                  else
+                    const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1196,7 +1468,497 @@ class _FollowButton extends StatelessWidget {
   }
 }
 
-/// Adaptive feed media — network image/video thumb.
+/// Professional multi-image collage — Instagram-style layouts for 1–4+ media.
+class _MediaCollage extends StatelessWidget {
+  const _MediaCollage({required this.items});
+
+  final List<FeedMediaItem> items;
+
+  static const _gap = 2.5;
+  static const _radius = 18.0;
+  /// Show at most 4 tiles; remaining count as +N on the last cell.
+  static const _maxTiles = 4;
+
+  List<FeedMediaItem> get _valid =>
+      items.where((m) => m.file.trim().isNotEmpty).toList();
+
+  static String displayUrl(FeedMediaItem m) {
+    if (m.isVideo && m.thumbnail?.trim().isNotEmpty == true) {
+      return m.thumbnail!.trim();
+    }
+    final file = m.file.trim();
+    if (file.isNotEmpty) return file;
+    return m.thumbnail?.trim() ?? '';
+  }
+
+  static String thumbUrl(FeedMediaItem m) =>
+      m.thumbnail?.trim().isNotEmpty == true
+          ? m.thumbnail!.trim()
+          : m.file.trim();
+
+  void _open(BuildContext context, List<FeedMediaItem> media, int index) {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.black.withValues(alpha: .92),
+        transitionDuration: const Duration(milliseconds: 280),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (_, animation, __) => _FeedMediaLightbox(
+          items: media,
+          initialIndex: index.clamp(0, media.length - 1),
+          animation: animation,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = _valid;
+    if (media.isEmpty) return const SizedBox.shrink();
+    if (media.length == 1) {
+      final item = media.first;
+      if (item.isVideo) {
+        return _SingleVideoFrame(
+          url: item.file,
+          posterUrl: item.thumbnail,
+          onOpenFullscreen: () => _open(context, media, 0),
+        );
+      }
+      return GestureDetector(
+        onTap: () => _open(context, media, 0),
+        child: _MediaSection(
+          isVideo: false,
+          label: 'Photo',
+          imageUrl: thumbUrl(item),
+        ),
+      );
+    }
+
+    final screenCap = MediaQuery.sizeOf(context).height * .58;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height =
+            math.min(width / 1.05, screenCap).clamp(180.0, screenCap);
+
+        return RepaintBoundary(
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(_radius),
+                border: Border.all(color: Colors.white.withValues(alpha: .4)),
+                color: const Color(0xFF1B1E28),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_radius),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildGrid(context, media),
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      child: IgnorePointer(
+                        child: _CountBadge(
+                          count: media.length,
+                          hasVideo: media.any((m) => m.isVideo),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGrid(BuildContext context, List<FeedMediaItem> media) {
+    final n = media.length;
+
+    if (n == 2) {
+      return Row(
+        children: [
+          Expanded(child: _tile(context, media, 0)),
+          const SizedBox(width: _gap),
+          Expanded(child: _tile(context, media, 1)),
+        ],
+      );
+    }
+
+    if (n == 3) {
+      return Row(
+        children: [
+          Expanded(flex: 55, child: _tile(context, media, 0)),
+          const SizedBox(width: _gap),
+          Expanded(
+            flex: 45,
+            child: Column(
+              children: [
+                Expanded(child: _tile(context, media, 1)),
+                const SizedBox(height: _gap),
+                Expanded(child: _tile(context, media, 2)),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    final extra = n > _maxTiles ? n - _maxTiles : 0;
+    return Column(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: _tile(context, media, 0)),
+              const SizedBox(width: _gap),
+              Expanded(child: _tile(context, media, 1)),
+            ],
+          ),
+        ),
+        const SizedBox(height: _gap),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: _tile(context, media, 2)),
+              const SizedBox(width: _gap),
+              Expanded(
+                child: _tile(
+                  context,
+                  media,
+                  3,
+                  overlayCount: extra > 0 ? extra : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tile(
+    BuildContext context,
+    List<FeedMediaItem> media,
+    int index, {
+    int? overlayCount,
+  }) {
+    final item = media[index];
+    // Don't feed .mp4 URLs into Image.network — use thumb only when present.
+    final preview = item.isVideo
+        ? (item.thumbnail?.trim() ?? '')
+        : thumbUrl(item);
+    return GestureDetector(
+      onTap: () => _open(context, media, index),
+      child: _CollageTile(
+        url: preview,
+        isVideo: item.isVideo,
+        overlayCount: overlayCount,
+      ),
+    );
+  }
+}
+
+/// Inline feed video — poster-first, tap to stream (keeps scroll fast).
+class _SingleVideoFrame extends StatefulWidget {
+  const _SingleVideoFrame({
+    required this.url,
+    required this.onOpenFullscreen,
+    this.posterUrl,
+  });
+
+  final String url;
+  final String? posterUrl;
+  final VoidCallback onOpenFullscreen;
+
+  @override
+  State<_SingleVideoFrame> createState() => _SingleVideoFrameState();
+}
+
+class _SingleVideoFrameState extends State<_SingleVideoFrame> {
+  var _active = false;
+
+  double get _frameRatio => (4 / 5).clamp(_mediaMinRatio, _mediaMaxRatio);
+
+  void _startPlayback() {
+    HapticFeedback.selectionClick();
+    setState(() => _active = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenCap = MediaQuery.sizeOf(context).height * .62;
+    final poster = widget.posterUrl?.trim() ?? '';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = math.min(width / _frameRatio, screenCap);
+
+        return RepaintBoundary(
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: .4)),
+                color: const Color(0xFF1B1E28),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (_active)
+                      FeedVideoPlayer(
+                        url: widget.url,
+                        posterUrl: poster.isEmpty ? null : poster,
+                        fit: BoxFit.cover,
+                        autoplay: true,
+                        muted: true,
+                        looping: true,
+                        showControls: true,
+                        requireVisible: true,
+                      )
+                    else
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _startPlayback,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (poster.isNotEmpty)
+                              CachedFeedImage(
+                                url: poster,
+                                fit: BoxFit.cover,
+                                width: width,
+                                height: height,
+                                memCacheWidth: InnovatorMediaCache.memCachePx(
+                                  context,
+                                  width,
+                                ),
+                              )
+                            else
+                              const ColoredBox(color: Color(0xFF1B1E28)),
+                            Center(
+                              child: Container(
+                                width: 54,
+                                height: 54,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.black.withValues(alpha: .4),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: .55),
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.play_arrow_rounded,
+                                  size: 30,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            color: Colors.black.withValues(alpha: .4),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.videocam_outlined,
+                                size: 12,
+                                color: Colors.white.withValues(alpha: .9),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Video',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withValues(alpha: .9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 10,
+                      top: 10,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: widget.onOpenFullscreen,
+                          borderRadius: BorderRadius.circular(999),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withValues(alpha: .4),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: .35),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.fullscreen_rounded,
+                              size: 20,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count, required this.hasVideo});
+
+  final int count;
+  final bool hasVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: Colors.black.withValues(alpha: .42),
+        border: Border.all(color: Colors.white.withValues(alpha: .3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            hasVideo ? Icons.collections_rounded : Icons.photo_library_outlined,
+            size: 12,
+            color: Colors.white.withValues(alpha: .92),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: .92),
+              letterSpacing: .2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CollageTile extends StatelessWidget {
+  const _CollageTile({
+    required this.url,
+    required this.isVideo,
+    this.overlayCount,
+  });
+
+  final String url;
+  final bool isVideo;
+  final int? overlayCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (url.isNotEmpty)
+          CachedFeedImage(
+            url: url,
+            fit: BoxFit.cover,
+            memCacheWidth: 560,
+            fadeDuration: const Duration(milliseconds: 120),
+          )
+        else
+          const ColoredBox(color: Color(0xFF1B1E28)),
+        // Soft vignette so edges stay readable.
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x14000000), Color(0x00000000), Color(0x33000000)],
+              stops: [0, .5, 1],
+            ),
+          ),
+        ),
+        if (isVideo && (overlayCount == null || overlayCount == 0))
+          Center(
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withValues(alpha: .4),
+                border: Border.all(color: Colors.white.withValues(alpha: .5)),
+              ),
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                size: 22,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        if (overlayCount != null && overlayCount! > 0)
+          ColoredBox(
+            color: Colors.black.withValues(alpha: .48),
+            child: Center(
+              child: Text(
+                '+$overlayCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: .5,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Adaptive feed media — single network image/video thumb.
 class _MediaSection extends StatelessWidget {
   const _MediaSection({
     required this.isVideo,
@@ -1236,14 +1998,16 @@ class _MediaSection extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     if (imageUrl.isNotEmpty)
-                      Image.network(
-                        imageUrl,
+                      CachedFeedImage(
+                        url: imageUrl,
                         fit: BoxFit.cover,
                         width: width,
                         height: height,
-                        errorBuilder: (_, __, ___) => const ColoredBox(
-                          color: Color(0xFF1B1E28),
+                        memCacheWidth: InnovatorMediaCache.memCachePx(
+                          context,
+                          width,
                         ),
+                        fadeDuration: const Duration(milliseconds: 120),
                       )
                     else
                       const ColoredBox(color: Color(0xFF1B1E28)),

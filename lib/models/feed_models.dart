@@ -11,16 +11,23 @@ class FeedMediaItem {
   final String? mediaType;
   final String? thumbnail;
 
-  bool get isVideo =>
-      (mediaType ?? '').toLowerCase().contains('video') ||
-      file.toLowerCase().endsWith('.mp4') ||
-      file.toLowerCase().endsWith('.mov');
+  bool get isVideo {
+    final type = (mediaType ?? '').toLowerCase();
+    if (type.contains('video')) return true;
+    final path = file.toLowerCase().split('?').first;
+    return path.endsWith('.mp4') ||
+        path.endsWith('.mov') ||
+        path.endsWith('.webm') ||
+        path.endsWith('.m4v') ||
+        path.endsWith('.avi');
+  }
 
   factory FeedMediaItem.fromJson(Map<String, dynamic> json) {
     return FeedMediaItem(
       id: json['id']?.toString() ?? '',
       file: json['file']?.toString() ?? '',
-      mediaType: json['media_type'] as String?,
+      mediaType: (json['media_type'] ?? json['mediaType'] ?? json['type'])
+          ?.toString(),
       thumbnail: json['thumbnail'] as String?,
     );
   }

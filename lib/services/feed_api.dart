@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../config/api_config.dart';
 import '../models/api_response.dart';
 import '../models/feed_models.dart';
 import '../models/search_models.dart';
 import 'api_client.dart';
+import 'feed_cache.dart';
 import 'memory_cache.dart';
 import 'search_api.dart';
 
@@ -103,7 +105,12 @@ class FeedApi {
     };
     final files = <http.MultipartFile>[
       for (final m in media)
-        http.MultipartFile.fromBytes('media', m.bytes, filename: m.filename),
+        http.MultipartFile.fromBytes(
+          'media',
+          m.bytes,
+          filename: m.filename,
+          contentType: _mediaContentType(m.filename),
+        ),
       for (final id in categoryIds)
         http.MultipartFile.fromString('categoryIds', id),
     ];
@@ -121,6 +128,7 @@ class FeedApi {
     if (data == null) {
       throw ApiException(envelope.message ?? 'Could not create post');
     }
+    FeedCache.invalidate();
     MemoryCache.invalidate('feed.page1');
     // Don't block publish on search indexing.
     unawaited(_indexPost(data));
@@ -133,6 +141,7 @@ class FeedApi {
       '/api/posts/$postId',
       parse: (_) => null,
     );
+    FeedCache.invalidate();
     MemoryCache.invalidate('feed.page1');
     unawaited(() async {
       try {
@@ -399,4 +408,19 @@ class FeedApi {
       );
     } catch (_) {}
   }
+}
+
+MediaType _mediaContentType(String filename) {
+  final name = filename.toLowerCase().split('?').first;
+  if (name.endsWith('.mp4')) return MediaType('video', 'mp4');
+  if (name.endsWith('.mov')) return MediaType('video', 'quicktime');
+  if (name.endsWith('.webm')) return MediaType('video', 'webm');
+  if (name.endsWith('.m4v')) return MediaType('video', 'x-m4v');
+  if (name.endsWith('.png')) return MediaType('image', 'png');
+  if (name.endsWith('.gif')) return MediaType('image', 'gif');
+  if (name.endsWith('.webp')) return MediaType('image', 'webp');
+  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) {
+    return MediaType('image', 'jpeg');
+  }
+  return MediaType('application', 'octet-stream');
 }

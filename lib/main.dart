@@ -7,6 +7,9 @@ import 'theme/brand_colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Larger decoded-image cache so feed scroll stays smooth.
+  PaintingBinding.instance.imageCache.maximumSize = 280;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20;
   await AuthSession.instance.load();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
